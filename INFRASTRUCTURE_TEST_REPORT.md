@@ -8,6 +8,99 @@ verification.** P0 is read-only and was not modified.
 
 ---
 
+## Phase 3 (2026-11-01/02) — Production Operations, Recovery & Deployment Readiness
+
+All Phase 3 tests were run on this VM against real PostgreSQL 16.15
+(cluster `16 main`, both working DBs at Alembic head 0007), unless a row
+says otherwise. SQLite was never substituted for PostgreSQL-specific
+verification. P0 is read-only and was not modified.
+
+### Full suites (Phase 3, coordinator's independent run)
+
+| Suite | Result | Notes |
+|---|---|---|
+| Backend pytest, full live suite under `courierledger_runtime` (`CL_LIVE_PG_ROLE=courierledger_runtime`, password from gitignored `.env` at runtime) | **439 passed, 4 skipped, 0 failed** in 270.05s (28 warnings, Starlette/httpx deprecation only) | Phase 2 baseline 410 + 33 new tests = 443 total; 439 + 4 = 443, reconciled exactly. The 4 skipped tests are the new maintenance live tests (`test_maintenance_live_pg.py`) — they skip by design in the runtime-role run because the purge needs DELETE on `user_sessions`/`password_reset_tokens`, which no application role holds; run separately with `CL_LIVE_PG_ROLE=courierledger` (owner password from `.env`) they pass: **4 passed**. A second full run confirmed 439/4/0 (357.45s). |
+| Frontend build (`npm run build`) | **pass** — built in 2.92s | Pre-existing >500 kB chunk-size warning only |
+| Frontend Vitest (`npm test`) | **50 passed, 0 failed** (8 files) | Unchanged from Phase 2 |
+| Playwright e2e (`npx playwright test`) | **3 passed** (48.6s, first try) | Unchanged from Phase 2 |
+| P0 prototype (`prototype-p0`, full suite) | **47 passed, 0 failed** (1 unrelated Starlette/httpx deprecation warning) | Unchanged; P0 files unmodified |
+
+### New tests added in Phase 3 (all pass)
+
+| File | Tests | Result |
+|---|---|---|
+| `m1/backend/tests/test_maintenance_live_pg.py` (new) | 4 live (maintenance job: deletes only expired sessions/tokens, idempotent second run, dry-run counts, advisory-lock skip; audit row survives) | **4 passed** (owner-role run; skipped by design in the runtime-role run — see above) |
+| `m1/backend/tests/test_migration_phase3_live_pg.py` (new) | 12 live (drift allow-list pin, migrator-role probes, migration A–D + (5)/(6)) | **12 passed** (as part of the 439) |
+| `m1/backend/tests/test_production_config.py` (new) | 15 (8 validator unit, 5 subprocess import, 1 DB-down readiness, 1 live production-mode) | **15 passed** (as part of the 439) |
+| `m1/backend/tests/test_migration_sql.py` (+2) | 2 new static tests | **2 passed** (as part of the 439) |
+
+Two pre-existing tests were updated for deliberate Phase 3 changes (head
+assertion 0006→0007 in `test_infrastructure_phase2_live_pg.py` and
+`test_runtime_role_live_pg.py` — both files say the assertion "must move
+with the next migration"; behaviour under test unchanged). One Phase 1
+fixture was changed (`test_security_phase1.py` `_prod_subprocess` now uses
+a dead-port `postgresql://` URL + explicit
+`FRONTEND_URL=https://app.example.invalid` because production validation
+refuses SQLite and the dev-default origin; assertions unchanged). No test
+removed, skipped, or weakened.
+
+### Migration tests (Phase 3, real PostgreSQL 16.15)
+
+| Test | Result |
+|---|---|
+| A — empty database → `alembic upgrade head` | **PASS** — fresh DB via `provision_db.sh` → 0007 |
+| B — existing DB at 0006 → 0007 | **PASS** — both working DBs upgraded as the migrator |
+| C — repeated migration | **PASS** — `upgrade head` re-run on app + dev, exit 0; second `provision_db.sh` run identical counts |
+| D — fresh-cluster provisioning | **PASS** — scratch DB head 0007, 33 tables, 46 policies, 15 functions, 22 triggers, 5 couriers |
+| (5) — RLS, triggers, indexes, constraints after correction | **PASS** — 33/46/15/22, 133 indexes, 265 constraints, FORCE 24 |
+| (6) — no schema change from ordinary app startup | **PASS** — `alembic check` identical before vs after a production-mode run |
+| `alembic check` after migration | **Exits 255 by design** — residual is the pinned 13-op allow-list (12 FK representation + 1 RLS-layer index); no differences suppressed |
+
+### Backup and restore tests (Phase 3, real runs)
+
+| Check | Result |
+|---|---|
+| Encrypted backup (`backup_encrypted.sh`, Alembic 0006, real synthetic rows) | **PASS** — 263,286 bytes encrypted (plaintext 263,101), globals 2,015 bytes, ~2 s; sidecar SHA-256 verified, decrypt + `pg_restore -l` verified |
+| Restore drill into a separate DB (`verify_restore.sh`) | **PASS** — ~5 s, exit 0; object counts identical, row counts identical (8 users, 8 reconciliation_results, 4 variance calcs, 56 audit_logs); V_total 0, V_cond 0, variance-calc 0 violations; RLS probe 0 merchants; scratch DB dropped |
+| Encrypted backup after rebuild (Alembic 0007, empty DB) | **PASS** — 226,294 bytes; same checks pass (identities vacuous, no business rows) |
+| Retention (keep 7 / 30 days) | **PASS** — 10 fake old sets + 1 real run → exactly 7 sets remained; same-minute re-run refused by the collision guard |
+| Globals restore | **NOT RUN** — artifact created + checksummed only |
+
+### Maintenance-job tests (Phase 3, live)
+
+Seeded 2 expired + 1 live session and expired + used + live tokens on
+`courierledger_dev`: dry-run 2/2, real run completed 2/2, second run 0/0
+(idempotent), multi-DB run 0/0 both, unknown DB → JSON error, exit 2;
+only live rows remained. Systemd timers enabled (backup daily 02:30 UTC,
+maintenance hourly) and proved via `systemctl start` (`Result=success`).
+
+### Test-run notes (Phase 3)
+
+- A container replacement mid-task wiped PostgreSQL; the cluster was
+  rebuilt (apt install, UTF8, both DBs re-provisioned at Alembic 0007)
+  and every live proof was re-run on the rebuilt cluster. One encrypted
+  backup was lost with its passphrase (it lived in `/etc`); the evidence
+  chain was re-run after the rebuild with the passphrase under
+  `~/.config`.
+- Stream A reported `test_security_phase11.py` showing failures in the
+  dirty tree vs its clean-baseline run. The coordinator's full-suite run
+  is green (439/4/0), so those were artefacts of running test files
+  standalone and/or concurrently with other streams' pytest processes:
+  two concurrent pytest processes in this backend directory share the
+  fixed `/tmp/cl_m1_test.db` SQLite file and one process's `_fresh_db`
+  fixture drops tables mid-test in the other (observed 12-failure run
+  with `no such table: user_sessions`). Full suites must be run with no
+  other pytest process active. A pre-existing flake also stands: running
+  two live-PG modules in one pytest invocation errors the first test of
+  whichever module runs second at fixture setup (shared scratch DB name
+  + port 8001 in `live_pg.py`); each file passes alone, and the full
+  suite passes — recorded, not fixed in Phase 3.
+- **Not run:** GitHub Actions CI (billing lock); Docker build /
+  `docker compose up` (B-2 — no Docker binary on this VM); `npm audit`
+  (egress blocked).
+
+---
+
 ## 1. Full suites (actual results)
 
 | Suite | Result | Notes |
