@@ -95,3 +95,77 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+PLACEHOLDER_SECRET = "CHANGE_ME_REPLACE_WITH_A_LONG_RANDOM_SECRET"
+# Compiled-in defaults that are only valid for local development. A
+# production process still carrying one of these has not been
+# configured — fail fast instead of running on it.
+DEFAULT_FRONTEND_URL = "http://127.0.0.1:5173"
+
+
+def validate_production_settings(cfg: Settings | None = None) -> None:
+    """Fail-fast startup validation for production (Phase 3, Stream C).
+
+    Called from app.main before the app is built, only when
+    ENVIRONMENT=production. Every failure names the variable to fix.
+
+    Rules (all value-based: a value may come from the process
+    environment or from a .env file, as config.py has always allowed —
+    what matters is that it is not a development default or a
+    placeholder):
+    - DATABASE_URL must be a postgresql:// URL and must not contain
+      the CHANGE_ME placeholder password. An unset DATABASE_URL falls
+      back to the compiled-in default, which contains CHANGE_ME, so
+      "not set" and "placeholder" fail the same check.
+    - SECRET_KEY / SESSION_SECRET must not be the placeholder.
+    - FRONTEND_URL must not be the development default
+      (http://127.0.0.1:5173) — in production that origin would be
+      the only CORS origin and the real frontend could not call the
+      API.
+    - SESSION_COOKIE_SECURE must be true (cookies over plain HTTP in
+      production would travel in the clear).
+    - CREATE_TABLES_ON_STARTUP must be false — production schema is
+      owned by Alembic migrations, never by app startup.
+    """
+    cfg = cfg if cfg is not None else settings
+
+    if "CHANGE_ME" in cfg.database_url:
+        raise RuntimeError(
+            "Refusing to start in production: DATABASE_URL still contains "
+            "the CHANGE_ME placeholder password (or was never set, so the "
+            "compiled-in placeholder default is in effect). Set DATABASE_URL "
+            "to the runtime-role URL from the secret store."
+        )
+    if not cfg.database_url.startswith("postgresql"):
+        raise RuntimeError(
+            "Refusing to start in production: DATABASE_URL must be a "
+            "postgresql:// URL (SQLite is test-only and never production "
+            "data). Set DATABASE_URL to the runtime-role PostgreSQL URL."
+        )
+
+    for name in ("secret_key", "session_secret"):
+        if getattr(cfg, name) == PLACEHOLDER_SECRET:
+            variable = name.upper()
+            raise RuntimeError(
+                f"Refusing to start in production with placeholder {variable}. "
+                f"Set {variable} to a long random value from the secret store."
+            )
+
+    if cfg.frontend_url == DEFAULT_FRONTEND_URL:
+        raise RuntimeError(
+            "Refusing to start in production with the development default "
+            "FRONTEND_URL (http://127.0.0.1:5173). Set FRONTEND_URL to the "
+            "production frontend origin (https://...)."
+        )
+    if not cfg.session_cookie_secure:
+        raise RuntimeError(
+            "Refusing to start in production with SESSION_COOKIE_SECURE=false. "
+            "Set SESSION_COOKIE_SECURE=true when serving behind HTTPS."
+        )
+    if cfg.create_tables_on_startup:
+        raise RuntimeError(
+            "Refusing to start in production with CREATE_TABLES_ON_STARTUP=true. "
+            "Production schema is owned by Alembic migrations; set "
+            "CREATE_TABLES_ON_STARTUP=false."
+        )
+

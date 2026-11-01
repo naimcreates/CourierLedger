@@ -23,7 +23,7 @@ m1/
   docker-compose.yml           PostgreSQL 16 service + backend service (frontend commented — see §5)
   .env.example                 placeholders only, no secrets (DATABASE_URL = runtime role;
                                MIGRATION_DATABASE_URL = owner role, for Alembic)
-  backend/Dockerfile           python:3.12-slim, non-root appuser, HEALTHCHECK /api/health
+  backend/Dockerfile           python:3.12-slim, non-root appuser, HEALTHCHECK /api/ready (Phase 3, Stream C — /api/health is liveness-only and returns 200 with the DB down)
   frontend/Dockerfile          node:24-alpine, npm ci + build, vite preview on 5173
   frontend/                    React + TypeScript + Vite + Tailwind v3 + React Router
                                + TanStack Query + React Hook Form + Zod

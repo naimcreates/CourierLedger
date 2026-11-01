@@ -29,7 +29,13 @@ USER appuser
 
 EXPOSE 8000
 
+# Phase 3 (Stream C): readiness, not liveness. /api/health returns 200
+# even when the database is down (the process is alive), so a
+# healthcheck on /health would report a database-less container as
+# healthy. /api/ready returns 200 only when the database round-trip
+# succeeds, so Docker restarts/replaces the container until the
+# database is actually reachable.
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=4)"
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

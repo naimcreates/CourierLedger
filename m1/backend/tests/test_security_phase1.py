@@ -643,7 +643,20 @@ def _prod_subprocess(code: str, secure: bool) -> subprocess.CompletedProcess:
     env["SECRET_KEY"] = "prod-test-secret-not-a-placeholder-1"
     env["SESSION_SECRET"] = "prod-test-secret-not-a-placeholder-2"
     env["SESSION_COOKIE_SECURE"] = "true" if secure else "false"
-    env["DATABASE_URL"] = "sqlite:////tmp/cl_m1_prod_probe.db"
+    # Phase 3, Stream C: production startup validation also refuses
+    # the development-default FRONTEND_URL, so the probe sets an
+    # explicit production-like origin. (Same reason as the
+    # DATABASE_URL change above.)
+    env["FRONTEND_URL"] = "https://app.example.invalid"
+    env["DATABASE_URL"] = (
+        # Phase 3, Stream C: production startup validation now refuses
+        # a SQLite DATABASE_URL (SQLite is test-only, never production
+        # data), so these production-mode probes use a postgresql URL
+        # pointing at a dead port. Nothing in the probe touches the
+        # database — /docs, /openapi.json and the HSTS header do not
+        # need one, and /api/health fails fast against the dead port.
+        "postgresql+psycopg://courierledger_runtime:prod-test-not-a-real-password@127.0.0.1:5999/courierledger_app"
+    )
     env["CREATE_TABLES_ON_STARTUP"] = "false"
     return subprocess.run(
         [sys.executable, "-c", code],

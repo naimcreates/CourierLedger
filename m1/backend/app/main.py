@@ -10,10 +10,14 @@ Notes:
 - The global exception handler returns {"detail": ...} and never
   leaks tracebacks or internals to the client; full tracebacks go
   to the structured JSON log.
-- In production mode the app refuses to start with the placeholder
-  SECRET_KEY / SESSION_SECRET, and with SESSION_COOKIE_SECURE=false
-  (Phase 1, B-F13/C-5.2 — a session cookie over plain HTTP in
-  production would be sent in the clear).
+- In production mode the app refuses to start unless the required
+  environment is wired up (Phase 3, Stream C — see
+  app.config.validate_production_settings): DATABASE_URL /
+  SECRET_KEY / SESSION_SECRET / FRONTEND_URL explicitly set in the
+  process environment, no placeholder secrets, SESSION_COOKIE_SECURE
+  true, CREATE_TABLES_ON_STARTUP false. Each failure names the
+  variable. (Phase 1, B-F13/C-5.2 — a session cookie over plain HTTP
+  in production would be sent in the clear.)
 - Security headers are set on every response by middleware (Phase 1,
   C-4.1/C-5.3); HSTS only in production (behind HTTPS). /docs,
   /redoc and /openapi.json are disabled in production (C-5.4).
@@ -34,7 +38,7 @@ from fastapi.responses import JSONResponse
 
 from app.api import auth, courier_accounts, health, imports, members, reconcile, reports, runs, settlements, shipments, statements, workspaces
 from app.api import settings as settings_api
-from app.config import settings
+from app.config import settings, validate_production_settings
 from app.db import models  # noqa: F401  (registers all 31/32 tables on shared Base)
 from app.db.auth_models import Base
 from app.db.session import engine
@@ -43,21 +47,11 @@ from app.logging_config import configure_logging, get_logger, request_id_var
 configure_logging(settings.log_level)
 logger = get_logger(__name__)
 
-PLACEHOLDER = "CHANGE_ME_REPLACE_WITH_A_LONG_RANDOM_SECRET"
-
-if settings.environment == "production" and (
-    settings.secret_key == PLACEHOLDER or settings.session_secret == PLACEHOLDER
-):
-    raise RuntimeError(
-        "Refusing to start in production with placeholder SECRET_KEY/SESSION_SECRET. "
-        "Set SECRET_KEY and SESSION_SECRET environment variables."
-    )
-
-if settings.environment == "production" and not settings.session_cookie_secure:
-    raise RuntimeError(
-        "Refusing to start in production with SESSION_COOKIE_SECURE=false. "
-        "Set SESSION_COOKIE_SECURE=true when serving behind HTTPS."
-    )
+# Phase 3 (Stream C): production startup validation — fail fast with
+# the variable named, before the app is built. (Replaces the two
+# inline Phase 1 checks that used to live here.)
+if settings.environment == "production":
+    validate_production_settings()
 
 _IS_PRODUCTION = settings.environment == "production"
 
