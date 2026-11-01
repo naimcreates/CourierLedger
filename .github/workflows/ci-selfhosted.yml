@@ -97,6 +97,9 @@ jobs:
           END
           $$;
           EOSQL
+          # The postgres OS user must be able to read this file
+          # (root's umask makes it 660 otherwise).
+          chmod 644 /tmp/ci_provision_roles.sql
           su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname IN ('courierledger_app', 'courierledger_dev', 'courierledger_live_test');\""
           su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"DROP DATABASE IF EXISTS courierledger_app;\" -c \"DROP DATABASE IF EXISTS courierledger_dev;\""
           su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -f /tmp/ci_provision_roles.sql"
@@ -118,8 +121,9 @@ jobs:
           # NOTE: roles.sql deliberately sets NO password on
           # courierledger_runtime, so set it here — without this step
           # the runtime role cannot log in at all.
+          cp app/db/roles.sql /tmp/ci_roles.sql && chmod 644 /tmp/ci_roles.sql
           for db in courierledger_app courierledger_dev; do
-            su postgres -c "psql -d $db -v ON_ERROR_STOP=1 -f $(pwd)/app/db/roles.sql"
+            su postgres -c "psql -d $db -v ON_ERROR_STOP=1 -f /tmp/ci_roles.sql"
           done
           su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"ALTER ROLE courierledger_runtime WITH PASSWORD '${CI_PG_PASSWORD}';\""
           # Seed the 5 courier codes (idempotent; no rates/templates).
@@ -238,6 +242,9 @@ jobs:
           END
           $$;
           EOSQL
+          # The postgres OS user must be able to read this file
+          # (root's umask makes it 660 otherwise).
+          chmod 644 /tmp/ci_provision_roles.sql
           su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'courierledger_app';\""
           su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"DROP DATABASE IF EXISTS courierledger_app;\""
           su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -f /tmp/ci_provision_roles.sql"
@@ -249,7 +256,8 @@ jobs:
             -d courierledger_app -v ON_ERROR_STOP=1 -f app/db/rls.sql
           PGPASSWORD=<redacted>
             -d courierledger_app -v ON_ERROR_STOP=1 -f app/db/triggers.sql
-          su postgres -c "psql -d courierledger_app -v ON_ERROR_STOP=1 -f $(pwd)/app/db/roles.sql"
+          cp app/db/roles.sql /tmp/ci_roles.sql && chmod 644 /tmp/ci_roles.sql
+          su postgres -c "psql -d courierledger_app -v ON_ERROR_STOP=1 -f /tmp/ci_roles.sql"
           su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"ALTER ROLE courierledger_runtime WITH PASSWORD '${CI_PG_PASSWORD}';\""
           PGPASSWORD=<redacted>
             -d courierledger_app -v ON_ERROR_STOP=1 -f app/db/seed_couriers.sql
