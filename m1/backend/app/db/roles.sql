@@ -205,6 +205,8 @@ GRANT UPDATE ON public.orders TO courierledger_maintenance;
 -- next to the function definition (runtime role only, PUBLIC revoked);
 -- it is not repeated here, so the grant travels with the function.
 -- ---------------------------------------------------------------------------
+REVOKE EXECUTE ON FUNCTION public.app_current_merchant_id() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.app_current_user_id() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.app_current_merchant_id() TO courierledger_runtime;
 GRANT EXECUTE ON FUNCTION public.app_current_merchant_id() TO courierledger_maintenance;
 GRANT EXECUTE ON FUNCTION public.app_current_user_id() TO courierledger_runtime;

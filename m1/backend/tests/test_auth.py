@@ -27,10 +27,22 @@ def test_register_login_me_logout(client):
     assert client.get("/api/auth/me").status_code == 401
 
 
-def test_register_duplicate_email_rejected(client):
+def test_register_duplicate_email_generic_response(client):
+    # Phase 1 (B-F9): registering an existing email returns a generic
+    # 200 that does not reveal existence — never a 400 naming the
+    # email, and no second account is created.
     register(client, "dup@example.com")
     resp = post(client, "/api/auth/register", {"email": "dup@example.com", "password": "correct-horse-battery-1"})
-    assert resp.status_code == 400
+    assert resp.status_code == 200, resp.text
+    assert "already registered" in resp.json()["detail"]
+    assert "id" not in resp.json()
+    from sqlalchemy import select
+
+    from app.db.auth_models import User
+    from app.db.session import SessionLocal
+
+    with SessionLocal() as db:
+        assert len(db.execute(select(User)).scalars().all()) == 1
 
 
 def test_register_short_password_rejected(client):

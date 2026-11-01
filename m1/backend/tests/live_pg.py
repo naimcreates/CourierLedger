@@ -42,6 +42,8 @@ from pathlib import Path
 
 import httpx
 
+_LIVE_DEFAULT_PASSWORD = secrets.token_urlsafe(16)  # Phase 1 (A-F5): no shared literal test password
+
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 DB_NAME = "courierledger_live_test"
 UVICORN_PORT = int(os.environ.get("CL_LIVE_PG_PORT", "8001"))
@@ -195,20 +197,23 @@ def post(client: httpx.Client, path: str, payload: dict, csrf: bool = True):
     return client.post(path, json=payload, headers=headers)
 
 
-def register(client: httpx.Client, email: str, password: str = "correct-horse-battery-1"):
+def register(client: httpx.Client, email: str, password: str = _LIVE_DEFAULT_PASSWORD):
+    """Register; 201 when created, 200 when the email is already
+    registered (Phase 1 generic response, B-F9) — both are success
+    for a test harness that then logs in."""
     resp = post(client, "/api/auth/register",
                 {"email": email, "password": password, "display_name": "Live Test User"})
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code in (200, 201), resp.text
     return resp.json()
 
 
-def login(client: httpx.Client, email: str, password: str = "correct-horse-battery-1"):
+def login(client: httpx.Client, email: str, password: str = _LIVE_DEFAULT_PASSWORD):
     resp = post(client, "/api/auth/login", {"email": email, "password": password})
     assert resp.status_code == 200, resp.text
     return resp.json()
 
 
-def authed_client(base_url: str, email: str, password: str = "correct-horse-battery-1") -> httpx.Client:
+def authed_client(base_url: str, email: str, password: str = _LIVE_DEFAULT_PASSWORD) -> httpx.Client:
     """A fresh cookie-persisting client, registered + logged in."""
     client = httpx.Client(base_url=base_url, timeout=10.0, trust_env=False)
     register(client, email, password)

@@ -35,10 +35,10 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_csrf
+from app.api.deps import get_current_user, require_csrf, require_write_role
 from app.db.auth_models import User
 from app.db.session import get_db
 from app.services import settlement_service
@@ -48,28 +48,32 @@ router = APIRouter(prefix="/workspaces/{workspace_id}", tags=["settlements"])
 
 
 class CreateBatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     merchant_courier_account_id: uuid.UUID
     run_id: uuid.UUID | None = None
     period_start: date | None = None
     period_end: date | None = None
-    expected_batch_payout_poisha: int | None = Field(default=None, ge=0)
+    expected_batch_payout_poisha: StrictInt | None = Field(default=None, ge=0, le=10**15)
 
 
 class CreateReceiptRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    amount_poisha: int = Field(gt=0)
+    amount_poisha: StrictInt = Field(gt=0, le=10**15)
     received_on: date | None = None
-    receipt_ref_label: str | None = None
-    evidence_note: str | None = None
+    receipt_ref_label: str | None = Field(default=None, max_length=500)
+    evidence_note: str | None = Field(default=None, max_length=1000)
     # Declared only so its presence can be rejected with a clear
     # message: bank account numbers are never accepted or stored.
     bank_account_number: str | None = None
 
 
 class CreateAllocationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     bank_receipt_id: uuid.UUID
-    allocated_poisha: int = Field(gt=0)
+    allocated_poisha: StrictInt = Field(gt=0, le=10**15)
 
 
 def _require_membership(db: Session, user: User, workspace_id: uuid.UUID):
@@ -101,7 +105,7 @@ def create_batch(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_membership(db, user, workspace_id)
+    require_write_role(_require_membership(db, user, workspace_id))
     try:
         return settlement_service.create_batch(
             db,
@@ -172,7 +176,7 @@ def create_receipt(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_membership(db, user, workspace_id)
+    require_write_role(_require_membership(db, user, workspace_id))
     if body.bank_account_number is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -211,7 +215,7 @@ def complete_receipt(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_membership(db, user, workspace_id)
+    require_write_role(_require_membership(db, user, workspace_id))
     try:
         return settlement_service.complete_receipt(
             db,
@@ -258,7 +262,7 @@ def create_allocation(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_membership(db, user, workspace_id)
+    require_write_role(_require_membership(db, user, workspace_id))
     try:
         return settlement_service.create_allocation(
             db,
@@ -288,7 +292,7 @@ def reverse_allocation(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_membership(db, user, workspace_id)
+    require_write_role(_require_membership(db, user, workspace_id))
     try:
         return settlement_service.reverse_allocation(
             db,
@@ -315,7 +319,7 @@ def calculate_variance(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_membership(db, user, workspace_id)
+    require_write_role(_require_membership(db, user, workspace_id))
     try:
         result = settlement_service.calculate_variance(
             db, user=user, merchant_id=workspace_id, batch_id=batch_id

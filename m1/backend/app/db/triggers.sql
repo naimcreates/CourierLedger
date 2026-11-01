@@ -53,9 +53,9 @@
 -- session_replication_role is superuser-only and table-owner
 -- trigger-disable DDL is not session-scoped).
 --
--- UNVERIFIED: no live PostgreSQL was available when this file was
--- written (see README.md). Every function below is real, complete
--- PL/pgSQL, but none has been executed against a server.
+-- VERIFIED against live PostgreSQL 16 (see m1/LOCAL_VERIFICATION.md;
+-- deferred triggers CL-01/CL-13/CL-16/CL-10 live-verified in M6/M7).
+-- Phase 1 (B-F20): the old UNVERIFIED header is stale.
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -761,5 +761,5 @@ CREATE CONSTRAINT TRIGGER trg_allocation_overage_check
   FOR EACH ROW EXECUTE FUNCTION public.fn_allocation_overage_check();
 
 -- ============================================================================
--- End of triggers.sql. UNVERIFIED against live PostgreSQL (see README.md).
+-- End of triggers.sql. VERIFIED against live PostgreSQL 16 (see LOCAL_VERIFICATION.md).
 -- ============================================================================

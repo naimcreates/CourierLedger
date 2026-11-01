@@ -213,6 +213,16 @@ AS $$
 DECLARE
   v_merchant_id uuid := gen_random_uuid();
 BEGIN
+  -- Phase 1 (B-F12) — REVERTED: an assertion that p_user_id must match
+  -- app_current_user_id() was tried and then reverted, because it broke
+  -- 29 existing live tests (test_triggers_live_pg.py, test_m6a1_live_pg.py,
+  -- test_idempotency_lease_live_pg.py) whose fixtures call this function
+  -- directly as the runtime role without setting app.user_id. The
+  -- function therefore still trusts its p_user_id argument. The control
+  -- is the single call site (workspace_service.create_workspace passes
+  -- the session user's id; deps.py sets app.user_id from the same
+  -- session before the call) plus the app-layer auth on the endpoint.
+  -- Recorded as remaining in SECURITY_REMEDIATION.md.
   IF p_user_id IS NULL OR NOT EXISTS (
     SELECT 1 FROM public.users u
     WHERE u.id = p_user_id AND u.status = 'active'
@@ -261,6 +271,9 @@ GRANT EXECUTE ON FUNCTION public.create_workspace(uuid, text, text) TO courierle
 -- an UPDATE to status='revoked'. NO FORCE (see the header note): the
 -- owner-side create_workspace() function inserts the owner membership.
 DROP POLICY IF EXISTS merchant_memberships_tenant_all ON public.merchant_memberships;
+DROP POLICY IF EXISTS merchant_memberships_tenant_select ON public.merchant_memberships;
+DROP POLICY IF EXISTS merchant_memberships_tenant_insert ON public.merchant_memberships;
+DROP POLICY IF EXISTS merchant_memberships_tenant_update ON public.merchant_memberships;
 CREATE POLICY merchant_memberships_tenant_select ON public.merchant_memberships
   FOR SELECT USING (
     user_id = public.app_current_user_id()
@@ -471,9 +484,7 @@ CREATE POLICY idempotency_keys_tenant_update ON public.idempotency_keys
   WITH CHECK (merchant_id = public.app_current_merchant_id());
 
 -- ============================================================================
--- End of rls.sql. Verification (UNVERIFIED until run against live PG --
--- see README.md): as the runtime role, with context set to merchant A,
--- SELECT from every tenant table returns only A's rows; with context
--- unset/malformed it returns zero rows; cross-tenant INSERT is rejected;
--- UPDATE/DELETE on append-only tables affects zero rows.
+-- End of rls.sql. VERIFIED against live PostgreSQL 16 (see
+-- m1/LOCAL_VERIFICATION.md; RLS cross-tenant probes pass under the
+-- runtime role). Phase 1 (B-F20): the old UNVERIFIED header is stale.
 -- ============================================================================

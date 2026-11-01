@@ -22,6 +22,7 @@ Asserts, live:
 from __future__ import annotations
 
 import os
+import secrets
 import subprocess
 
 import httpx
@@ -44,7 +45,7 @@ pytestmark = pytest.mark.skipif(
     reason="runtime-role tests need CL_LIVE_PG_PASSWORD + CL_LIVE_PG_ROLE=courierledger_runtime",
 )
 
-PASSWORD = "correct-horse-battery-1"
+PASSWORD = secrets.token_urlsafe(16)  # Phase 1 (A-F5): random per run, not a shared literal
 
 
 @pytest.fixture(scope="module")
@@ -137,9 +138,10 @@ def test_auth_workspace_reconcile_smoke_under_runtime(live):
         # under-collection: E=100000, R=95000, deductions 7950
         # (7000 delivery + 950 fee), payout 87050 -> C -5000,
         # V_total -4950, V_cond 0, contractual matched, overall open.
-        resp = client.post(
+        resp = post(
+            client,
             "/api/reconcile",
-            json={"shipments": [{
+            {"shipments": [{
                 "merchant_order_id": "ORD-RT-01",
                 "tracking_id": "TRK-RT-01",
                 "courier_fixture": "Fixture Gamma",
@@ -184,4 +186,4 @@ def test_alembic_uses_migration_database_url(live):
         timeout=120,
     )
     assert proc.returncode == 0, proc.stderr
-    assert "0002 (head)" in proc.stdout, proc.stdout
+    assert "0004 (head)" in proc.stdout, proc.stdout

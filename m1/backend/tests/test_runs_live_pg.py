@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import secrets
 import uuid
 from pathlib import Path
 
@@ -49,7 +50,7 @@ pytestmark = pytest.mark.skipif(
     not live_pg_enabled(), reason="live-PG tests need CL_LIVE_PG_PASSWORD"
 )
 
-PASSWORD = "correct-horse-battery-1"
+PASSWORD = secrets.token_urlsafe(16)  # Phase 1 (A-F5): random per run, not a shared literal
 FIXTURE = Path(__file__).parent / "data" / "generic_statement_fixture.csv"
 MAPPING = {
     "tracking_id": "Tracking ID",

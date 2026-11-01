@@ -35,8 +35,17 @@ export function RegisterPage() {
   async function onSubmit(values: RegisterForm) {
     setServerError(null)
     try {
-      await registerAccount(values.name, values.email, values.password)
-      navigate('/workspaces')
+      const result = (await registerAccount(values.name, values.email, values.password)) as
+        | { id?: string; detail?: string }
+        | undefined
+      // Phase 1 (B-F9): an already-registered email returns 200 with a
+      // generic message and no user id — send that user to sign in
+      // instead of the workspace list (they have no session yet).
+      if (result && typeof result.detail === 'string' && !result.id) {
+        navigate('/login')
+      } else {
+        navigate('/workspaces')
+      }
     } catch (err) {
       setServerError(
         err instanceof ApiError

@@ -28,10 +28,10 @@ import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_csrf
+from app.api.deps import get_current_user, require_csrf, require_write_role
 from app.db.auth_models import User
 from app.db.session import get_db
 from app.services import run_service
@@ -49,10 +49,12 @@ class CreateRunRequest(BaseModel):
     optional: when omitted the workspace setting is used (0 when no
     settings row exists)."""
 
-    courier_fixture: str | None = None
+    model_config = ConfigDict(extra="forbid")
+
+    courier_fixture: str | None = Field(default=None, max_length=200)
     rule_version_id: uuid.UUID | None = None
-    tolerance_poisha: int | None = None
-    idempotency_key: str | None = None
+    tolerance_poisha: StrictInt | None = Field(default=None, ge=0, le=10**15)
+    idempotency_key: str | None = Field(default=None, max_length=128)
 
 
 def _require_membership(db: Session, user: User, workspace_id: uuid.UUID):
@@ -70,11 +72,11 @@ def create_run(
     workspace_id: uuid.UUID,
     batch_id: uuid.UUID,
     body: CreateRunRequest,
-    idempotency_header: str | None = Header(default=None, alias="Idempotency-Key"),
+    idempotency_header: str | None = Header(default=None, alias="Idempotency-Key", max_length=128),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_membership(db, user, workspace_id)
+    require_write_role(_require_membership(db, user, workspace_id))
     try:
         summary = run_service.create_run_from_import(
             db,

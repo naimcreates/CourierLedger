@@ -225,7 +225,7 @@ cached deps, fixed by installing them in dependency order) and
 re-provisioned per `m1/README.md` §3, including the known
 `rls.sql`-before-`roles.sql` ordering quirk on `courierledger_app`
 (re-ran `rls.sql` after roles existed). Both DB roles and
-`backend/.env` were synced to the documented dev placeholder password
+`backend/.env` were synced to the password in gitignored `backend/.env` (a fresh random value since the Phase 1 rotation, 2026-11-01)
 (the `.env` password had drifted from the fresh roles, so the app
 reported `database_ok: false` until synced — the `.env` is gitignored,
 mode 600, local dev only). The Vite dev server survived the

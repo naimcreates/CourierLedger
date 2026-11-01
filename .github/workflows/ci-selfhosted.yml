@@ -6,8 +6,8 @@
 #     VM (`runc create failed: setns: operation not permitted`).
 #     All PostgreSQL work goes against the VM's local cluster
 #     (PostgreSQL 16, port 5432, UTF8), which the provisioning steps
-#     below (re)create from scratch: roles, courierledger_app /
-#     courierledger_dev, Alembic, rls.sql / triggers.sql, roles.sql,
+#     below (re)create from scratch: roles, courierledger_ci_app /
+#     courierledger_ci_dev, Alembic, rls.sql / triggers.sql, roles.sql,
 #     seed_couriers.sql. Only synthetic data lives in these DBs.
 #   * The runner runs as root (RUNNER_ALLOW_RUNASROOT=1), so the
 #     live-test `su postgres -c "psql ..."` calls in
@@ -19,15 +19,18 @@
 # (runs-on: ubuntu-latest, postgres:16 service) stays authoritative
 # for GitHub-hosted runners once the account billing lock is fixed.
 #
-# Secrets: the only secret is CI_POSTGRES_PASSWORD (repo secret, set
-# 2026-11-01 to the documented local-dev placeholder value so a
-# self-hosted run resets the shared roles to the same password local
-# dev uses — see m1/LOCAL_VERIFICATION.md "Password drift" — it only
-# protects an ephemeral CI database holding synthetic data). If the
-# secret is not set, the literal fallback `ci-only-placeholder` is
-# used; it is a placeholder, never a real password, and must never be
-# reused outside CI. No other secret is needed: SECRET_KEY /
-# SESSION_SECRET are generated fresh per run.
+# Secrets: the only secret is CI_POSTGRES_PASSWORD (repo secret — a
+# fresh random value, rotated in Phase 1, 2026-11-01). There is NO
+# literal fallback: the jobs fail closed when the secret is unset.
+# Phase 1 (A-F3): self-hosted runs use DEDICATED CI-only databases
+# (courierledger_ci_app / courierledger_ci_dev) and NEVER drop
+# courierledger_ci_app / courierledger_ci_dev, and they do NOT reset the
+# shared role passwords. The workflow authenticates with the secret,
+# so for self-hosted runs the secret MUST equal the current password
+# of the courierledger / courierledger_runtime roles (see
+# PRODUCTION_SECRETS_GUIDE.md — the Phase 1 rotation set the secret
+# and both local roles to the same fresh value). No other secret is
+# needed: SECRET_KEY / SESSION_SECRET are generated fresh per run.
 #
 # PARKED 2026-11-01 (Milestone 12, CI-independent development): the
 # runner `courierledger-vm` went offline (its process is gone) and its
@@ -63,7 +66,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CI_PG_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD || 'ci-only-placeholder' }}
+  CI_PG_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
   POSTGRES_HOST: localhost
   POSTGRES_PORT: "5432"
   OWNER_ROLE: courierledger
@@ -79,6 +82,13 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
+      - name: Require CI_POSTGRES_PASSWORD secret
+        run: |
+          if [ -z "${CI_PG_PASSWORD}" ]; then
+            echo "::error::CI_POSTGRES_PASSWORD repo secret is not set; refusing to run with a placeholder password." >&2
+            exit 1
+          fi
+
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -93,7 +103,7 @@ jobs:
           .venv/bin/pip install --upgrade pip
           .venv/bin/pip install -r requirements.txt
 
-      # Provision courierledger_app + courierledger_dev from scratch
+      # Provision courierledger_ci_app + courierledger_ci_dev from scratch
       # against the VM's local cluster: drop the (synthetic-only) DBs,
       # create roles, Alembic as the owner, rls/triggers as the owner,
       # roles.sql as the postgres superuser, runtime-role password,
@@ -104,8 +114,8 @@ jobs:
         working-directory: m1/backend
         env:
           PGPASSWORD: ${{ env.CI_PG_PASSWORD }}
-          OWNER_URL: postgresql+psycopg://courierledger:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_app
-          RUNTIME_URL: postgresql+psycopg://courierledger_runtime:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_app
+          OWNER_URL: postgresql+psycopg://courierledger:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_ci_app
+          RUNTIME_URL: postgresql+psycopg://courierledger_runtime:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_ci_app
         run: |
           set -euo pipefail
           cat > /tmp/ci_provision_roles.sql <<'EOSQL'
@@ -123,34 +133,33 @@ jobs:
           # The postgres OS user must be able to read this file
           # (root's umask makes it 660 otherwise).
           chmod 644 /tmp/ci_provision_roles.sql
-          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname IN ('courierledger_app', 'courierledger_dev', 'courierledger_live_test');\""
-          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"DROP DATABASE IF EXISTS courierledger_app;\" -c \"DROP DATABASE IF EXISTS courierledger_dev;\""
+          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname IN ('courierledger_ci_app', 'courierledger_ci_dev', 'courierledger_live_test');\""
+          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"DROP DATABASE IF EXISTS courierledger_ci_app;\" -c \"DROP DATABASE IF EXISTS courierledger_ci_dev;\""
           su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -f /tmp/ci_provision_roles.sql"
-          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"ALTER ROLE courierledger WITH PASSWORD '${CI_PG_PASSWORD}';\" -c \"ALTER ROLE courierledger_runtime WITH PASSWORD '${CI_PG_PASSWORD}';\""
-          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"CREATE DATABASE courierledger_app OWNER courierledger;\" -c \"CREATE DATABASE courierledger_dev OWNER courierledger;\""
+          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"CREATE DATABASE courierledger_ci_app OWNER courierledger;\" -c \"CREATE DATABASE courierledger_ci_dev OWNER courierledger;\""
           # Alembic as the DB owner (MIGRATION_DATABASE_URL), both DBs.
           MIGRATION_DATABASE_URL="${OWNER_URL}" \
             .venv/bin/alembic upgrade head
-          MIGRATION_DATABASE_URL="postgresql+psycopg://courierledger:${CI_PG_PASSWORD}@localhost:5432/courierledger_dev" \
+          MIGRATION_DATABASE_URL="postgresql+psycopg://courierledger:${CI_PG_PASSWORD}@localhost:5432/courierledger_ci_dev" \
             .venv/bin/alembic upgrade head
           # RLS + triggers as the owner role, per database.
-          for db in courierledger_app courierledger_dev; do
+          for db in courierledger_ci_app courierledger_ci_dev; do
           PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger -d "$db" \
               -v ON_ERROR_STOP=1 -f app/db/rls.sql
           PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger -d "$db" \
               -v ON_ERROR_STOP=1 -f app/db/triggers.sql
           done
           # roles.sql as the superuser (it creates roles), per database.
-          # NOTE: roles.sql deliberately sets NO password on
-          # courierledger_runtime, so set it here — without this step
-          # the runtime role cannot log in at all.
+          # Phase 1 (A-F3): roles.sql sets NO password and this workflow
+          # does NOT reset the shared role passwords — it authenticates
+          # with CI_POSTGRES_PASSWORD, which must equal the roles'
+          # current password (see the header comment).
           cp app/db/roles.sql /tmp/ci_roles.sql && chmod 644 /tmp/ci_roles.sql
-          for db in courierledger_app courierledger_dev; do
+          for db in courierledger_ci_app courierledger_ci_dev; do
             su postgres -c "psql -d $db -v ON_ERROR_STOP=1 -f /tmp/ci_roles.sql"
           done
-          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"ALTER ROLE courierledger_runtime WITH PASSWORD '${CI_PG_PASSWORD}';\""
           # Seed the 5 courier codes (idempotent; no rates/templates).
-          for db in courierledger_app courierledger_dev; do
+          for db in courierledger_ci_app courierledger_ci_dev; do
           PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger -d "$db" \
               -v ON_ERROR_STOP=1 -f app/db/seed_couriers.sql
           done
@@ -204,7 +213,7 @@ jobs:
   # ------------------------------------------------------------------
   # Playwright e2e: full happy path register -> workspace -> import ->
   # run -> settle against the real backend + real PostgreSQL.
-  # Provision courierledger_app only — the e2e backend connects
+  # Provision courierledger_ci_app only — the e2e backend connects
   # to it as the runtime role (see the generated backend/.env).
   # The backend .env is generated here (CI-only, gitignored) because
   # frontend/playwright.config.ts reads m1/backend/.env and crashes
@@ -216,6 +225,13 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
+
+      - name: Require CI_POSTGRES_PASSWORD secret
+        run: |
+          if [ -z "${CI_PG_PASSWORD}" ]; then
+            echo "::error::CI_POSTGRES_PASSWORD repo secret is not set; refusing to run with a placeholder password." >&2
+            exit 1
+          fi
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -246,11 +262,11 @@ jobs:
         working-directory: m1/frontend
         run: npx playwright install --with-deps chromium
 
-      - name: Provision PostgreSQL (courierledger_app)
+      - name: Provision PostgreSQL (courierledger_ci_app)
         working-directory: m1/backend
         env:
           PGPASSWORD: ${{ env.CI_PG_PASSWORD }}
-          OWNER_URL: postgresql+psycopg://courierledger:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_app
+          OWNER_URL: postgresql+psycopg://courierledger:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_ci_app
         run: |
           set -euo pipefail
           cat > /tmp/ci_provision_roles.sql <<'EOSQL'
@@ -268,27 +284,25 @@ jobs:
           # The postgres OS user must be able to read this file
           # (root's umask makes it 660 otherwise).
           chmod 644 /tmp/ci_provision_roles.sql
-          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'courierledger_app';\""
-          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"DROP DATABASE IF EXISTS courierledger_app;\""
+          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'courierledger_ci_app';\""
+          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"DROP DATABASE IF EXISTS courierledger_ci_app;\""
           su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -f /tmp/ci_provision_roles.sql"
-          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"ALTER ROLE courierledger WITH PASSWORD '${CI_PG_PASSWORD}';\" -c \"ALTER ROLE courierledger_runtime WITH PASSWORD '${CI_PG_PASSWORD}';\""
-          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"CREATE DATABASE courierledger_app OWNER courierledger;\""
+          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"CREATE DATABASE courierledger_ci_app OWNER courierledger;\""
           MIGRATION_DATABASE_URL="${OWNER_URL}" \
             .venv/bin/alembic upgrade head
           PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger \
-            -d courierledger_app -v ON_ERROR_STOP=1 -f app/db/rls.sql
+            -d courierledger_ci_app -v ON_ERROR_STOP=1 -f app/db/rls.sql
           PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger \
-            -d courierledger_app -v ON_ERROR_STOP=1 -f app/db/triggers.sql
+            -d courierledger_ci_app -v ON_ERROR_STOP=1 -f app/db/triggers.sql
           cp app/db/roles.sql /tmp/ci_roles.sql && chmod 644 /tmp/ci_roles.sql
-          su postgres -c "psql -d courierledger_app -v ON_ERROR_STOP=1 -f /tmp/ci_roles.sql"
-          su postgres -c "psql -d postgres -v ON_ERROR_STOP=1 -c \"ALTER ROLE courierledger_runtime WITH PASSWORD '${CI_PG_PASSWORD}';\""
+          su postgres -c "psql -d courierledger_ci_app -v ON_ERROR_STOP=1 -f /tmp/ci_roles.sql"
           PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger \
-            -d courierledger_app -v ON_ERROR_STOP=1 -f app/db/seed_couriers.sql
+            -d courierledger_ci_app -v ON_ERROR_STOP=1 -f app/db/seed_couriers.sql
 
       - name: Write CI backend .env for Playwright
         working-directory: m1/backend
         env:
-          CI_DATABASE_URL: postgresql+psycopg://courierledger_runtime:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_app
+          CI_DATABASE_URL: postgresql+psycopg://courierledger_runtime:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_ci_app
         run: |
           set -euo pipefail
           SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"

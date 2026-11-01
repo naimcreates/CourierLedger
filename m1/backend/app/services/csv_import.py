@@ -98,6 +98,21 @@ logger = get_logger(__name__)
 VAR_IMPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "var" / "imports"
 
 MAX_ROWS_RETURNED = 500  # detail endpoint cap (see api/imports.py)
+MAX_ERRORS_RETURNED = 500  # detail endpoint errors cap (C-1.9)
+# Phase 1 (C-2.1): ingestion caps. A 10 MB file can otherwise expand
+# into hundreds of thousands of rows in one transaction.
+MAX_IMPORT_ROWS = 50_000
+MAX_IMPORT_COLUMNS = 100
+# Explicit per-field limit (Python csv default is 131072 bytes); a
+# larger field is a parse failure, not a silent truncation.
+CSV_FIELD_SIZE_LIMIT = 1024 * 1024  # 1 MB per field
+# Phase 1 (C-2.3): cells whose stripped value starts with one of these
+# are flagged FORMULA_LIKE_VALUE at ingest (a future export must
+# neutralise them; stored raw values are never rewritten — verbatim
+# preservation is a design rule). A plain signed/unsigned number
+# (e.g. "-500") is not a formula and is not flagged.
+FORMULA_LIKE_PREFIXES = ("=", "+", "-", "@", "|", "%")
+_NUMERIC_RE = re.compile(r"^[+-]?(\d+(\.\d+)?|\.\d+)$")
 
 
 class ImportAccessError(Exception):
@@ -178,6 +193,8 @@ def validate_mapping(mapping: dict) -> dict:
         if not isinstance(source, str) or source.strip() == "":
             raise MappingError(f"Source header for {canonical!r} must be a non-empty string.")
         header = source.strip()
+        if len(header) > 500:  # Phase 1 (C-1.7): mapping headers are unbounded strings otherwise
+            raise MappingError(f"Source header for {canonical!r} must be at most 500 characters.")
         key = _header_key(header)
         if key in seen_sources:
             raise MappingError(
@@ -189,6 +206,17 @@ def validate_mapping(mapping: dict) -> dict:
     return cleaned
 
 
+def _is_formula_like(value: str | None) -> bool:
+    """True when a cell looks like a spreadsheet formula (Phase 1,
+    C-2.3). Plain numbers (e.g. "-500", "+12.5") are not formulas."""
+    if value is None:
+        return False
+    stripped = str(value).strip()
+    if not stripped or not stripped.startswith(FORMULA_LIKE_PREFIXES):
+        return False
+    return _NUMERIC_RE.match(stripped) is None
+
+
 def parse_csv_bytes(data: bytes):
     """Decode + parse CSV bytes.
 
@@ -198,42 +226,58 @@ def parse_csv_bytes(data: bytes):
     cells kept as "". Raises ImportFailedError on undecodable bytes,
     an empty file, or a header row with no usable columns.
     Row field-count mismatches are NOT raised here -- they are handled
-    per-row by the importer (parse_status 'failed')."""
+    per-row by the importer (parse_status 'failed').
+    Phase 1 (C-2.1): the reader is iterated (never list(reader)) and
+    the row/column caps are enforced during iteration, so an oversized
+    file is rejected before it materialises into hundreds of thousands
+    of rows; csv.field_size_limit is set explicitly.
+    """
     try:
         text = data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         raise ImportFailedError(f"File is not valid UTF-8 text: {exc}") from exc
+    csv.field_size_limit(CSV_FIELD_SIZE_LIMIT)
     reader = csv.reader(io.StringIO(text))
     try:
-        rows = list(reader)
+        rows_iter = iter(reader)
+        try:
+            header_row = next(rows_iter)
+        except StopIteration:
+            raise ImportFailedError("File is empty.") from None
+        headers = [h.strip() for h in header_row]
+        if not any(headers):
+            raise ImportFailedError("File has no header row.")
+        if len([h for h in headers if h]) > MAX_IMPORT_COLUMNS:
+            raise ImportFailedError(
+                f"File has more than {MAX_IMPORT_COLUMNS} columns."
+            )
+        if len(set(_header_key(h) for h in headers if h)) != len([h for h in headers if h]):
+            raise ImportFailedError("File has duplicate header names.")
+        parsed: list[dict] = []
+        for raw_row in rows_iter:
+            if len(parsed) >= MAX_IMPORT_ROWS:
+                raise ImportFailedError(
+                    f"File has more than {MAX_IMPORT_ROWS} rows."
+                )
+            if len(raw_row) == 0 or all(str(v).strip() == "" for v in raw_row):
+                # A genuinely blank line: an empty record, which the
+                # importer records as parse_status 'skipped_blank' (it is
+                # still a line of the file, so it keeps its row number).
+                parsed.append({})
+                continue
+            if len(raw_row) != len(headers):
+                # Field-count mismatch: keep the raw row for the failed-row
+                # path (the importer records it, it does not crash).
+                parsed.append({"__raw__": raw_row, "__mismatch__": True})
+                continue
+            record = {}
+            for header, value in zip(headers, raw_row):
+                if value is None:
+                    continue  # absent stays absent
+                record[header] = value
+            parsed.append(record)
     except csv.Error as exc:
         raise ImportFailedError(f"CSV could not be parsed: {exc}") from exc
-    if not rows:
-        raise ImportFailedError("File is empty.")
-    headers = [h.strip() for h in rows[0]]
-    if not any(headers):
-        raise ImportFailedError("File has no header row.")
-    if len(set(_header_key(h) for h in headers if h)) != len([h for h in headers if h]):
-        raise ImportFailedError("File has duplicate header names.")
-    parsed: list[dict] = []
-    for raw_row in rows[1:]:
-        if len(raw_row) == 0 or all(str(v).strip() == "" for v in raw_row):
-            # A genuinely blank line: an empty record, which the
-            # importer records as parse_status 'skipped_blank' (it is
-            # still a line of the file, so it keeps its row number).
-            parsed.append({})
-            continue
-        if len(raw_row) != len(headers):
-            # Field-count mismatch: keep the raw row for the failed-row
-            # path (the importer records it, it does not crash).
-            parsed.append({"__raw__": raw_row, "__mismatch__": True})
-            continue
-        record = {}
-        for header, value in zip(headers, raw_row):
-            if value is None:
-                continue  # absent stays absent
-            record[header] = value
-        parsed.append(record)
     return headers, parsed
 
 
@@ -253,8 +297,22 @@ def _request_hash(merchant_id, file_sha256: str, mapping: dict, account_id) -> s
     return _sha256_hex(canonical.encode("utf-8"))
 
 
+def _normalise_content_type(declared: str | None) -> str:
+    """Store the upload's declared content type instead of hardcoding
+    text/csv (Phase 1, C-2.2). Only the two types the file_objects
+    CHECK constraint allows are stored verbatim; anything else —
+    including an absent declaration — is stored as "unknown" (the
+    constraint was widened for it in Alembic migration 0003). The
+    declared type is a client claim, not a verified fact: the only
+    real gate remains "does it decode as UTF-8 and parse as CSV"."""
+    if declared in ("text/csv", "application/vnd.ms-excel"):
+        return declared
+    return "unknown"
+
+
 def _find_or_create_file_object(
-    db: Session, merchant_id, user_id, filename: str, data: bytes, file_sha256: str
+    db: Session, merchant_id, user_id, filename: str, data: bytes, file_sha256: str,
+    content_type: str | None = None,
 ) -> FileObject:
     existing = db.execute(
         select(FileObject).where(
@@ -274,7 +332,7 @@ def _find_or_create_file_object(
         original_filename=filename,
         sha256=file_sha256,
         size_bytes=len(data),
-        content_type="text/csv",
+        content_type=_normalise_content_type(content_type),
         uploaded_by_user_id=user_id,
     )
     db.add(file_object)
@@ -375,6 +433,7 @@ def run_import(
     mapping: dict,
     idempotency_key: str | None = None,
     claimed_by_instance: str = "csv-import",
+    content_type: str | None = None,
 ) -> dict:
     """Run one CSV import. Returns a summary dict (batch id, status,
     counts, file sha256, mapping snapshot, idempotency outcome).
@@ -420,7 +479,8 @@ def run_import(
         return _batch_summary(db, batch, outcome="replay")
 
     file_object = _find_or_create_file_object(
-        db, merchant_id, user.id, filename, data, file_sha256
+        db, merchant_id, user.id, filename, data, file_sha256,
+        content_type=content_type,
     )
     batch = ImportBatch(
         merchant_id=merchant_id,
@@ -685,6 +745,17 @@ def _parse_record_fields(headers, record, resolved):
         errors.append(("VALUE_BLANK", "warning",
                        "Tracking id is blank; the row can only match by merchant order ref.",
                        "tracking_id", tracking_raw))
+    # Phase 1 (C-2.3): flag formula-like cells at ingest. The raw
+    # value is preserved verbatim (never rewritten); the warning
+    # exists so a future export can neutralise the cell before it
+    # reaches a spreadsheet. One warning per cell, even when the cell
+    # already produced a money/date warning above.
+    for header, value in record.items():
+        if _is_formula_like(value):
+            errors.append(("FORMULA_LIKE_VALUE", "warning",
+                           f"Cell in column {header!r} starts with a formula-like character; "
+                           "stored verbatim — neutralise it before any spreadsheet export.",
+                           header, value))
     return fields, errors
 
 
@@ -744,17 +815,24 @@ def get_batch_detail(db: Session, merchant_id, batch_id) -> dict | None:
     ).scalars().all()
     truncated = len(rows) > MAX_ROWS_RETURNED
     rows = rows[:MAX_ROWS_RETURNED]
+    # Phase 1 (C-1.9): statement lines are loaded only for the rows
+    # actually returned — never the whole batch — and the errors list
+    # is capped with a truncated flag, like the rows list.
+    row_ids = [r.id for r in rows]
     line_by_row = {
         line.import_row_id: line
         for line in db.execute(
-            select(StatementLine).where(StatementLine.import_batch_id == batch.id)
+            select(StatementLine).where(StatementLine.import_row_id.in_(row_ids))
         ).scalars().all()
-    }
-    errors = db.execute(
+    } if row_ids else {}
+    error_rows = db.execute(
         select(ImportError)
         .where(ImportError.import_batch_id == batch.id)
         .order_by(ImportError.created_at)
+        .limit(MAX_ERRORS_RETURNED + 1)
     ).scalars().all()
+    truncated_errors = len(error_rows) > MAX_ERRORS_RETURNED
+    errors = error_rows[:MAX_ERRORS_RETURNED]
     return {
         "batch": _batch_summary(db, batch, outcome="stored"),
         "rows": [
@@ -796,6 +874,7 @@ def get_batch_detail(db: Session, merchant_id, batch_id) -> dict | None:
             for r in rows
         ],
         "truncated": truncated,
+        "truncated_errors": truncated_errors,
         "errors": [
             {
                 "import_row_id": str(e.import_row_id) if e.import_row_id else None,

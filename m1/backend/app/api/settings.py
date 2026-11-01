@@ -51,7 +51,7 @@ class UpdateSettingsRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    tolerance_poisha: StrictInt | None = Field(default=None, ge=0)
+    tolerance_poisha: StrictInt | None = Field(default=None, ge=0, le=10**15)
     locale: Literal["en", "en_bn"] | None = None
 
 

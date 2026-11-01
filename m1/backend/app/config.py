@@ -50,12 +50,28 @@ class Settings(BaseSettings):
     # Default false.
     create_tables_on_startup: bool = False
 
-    # Password policy (M1).
+    # Password policy (M1). Phase 1: a maximum length as well — Argon2id
+    # hashes the entire input, so an unbounded password is a CPU/memory
+    # DoS vector on register/login/reset-confirm (C-1.6 / B-F14).
     password_min_length: int = 12
+    password_max_length: int = 128
 
     # Login rate limiting: max failures per (IP + email) in the window.
     login_max_failures: int = 5
     login_window_seconds: int = 15 * 60  # 15 minutes
+
+    # Phase 1 generic rate limits (B-F5/B-F9): register and
+    # password-reset request, per IP; member invites, per workspace.
+    # 50/hour per IP: strict enough to stop mass registration, loose
+    # enough that the live test suite (many users from 127.0.0.1 in one
+    # module run) and small-office NATs are not blocked. Per-IP only;
+    # the per-account bucket is the login one (B-F6).
+    register_max_attempts: int = 50
+    register_window_seconds: int = 60 * 60  # 1 hour
+    reset_request_max_attempts: int = 10
+    reset_request_window_seconds: int = 60 * 60  # 1 hour
+    invite_max_attempts: int = 10
+    invite_window_seconds: int = 60 * 60  # 1 hour
 
     # Password-reset token lifetime.
     password_reset_ttl_seconds: int = 60 * 60  # 1 hour

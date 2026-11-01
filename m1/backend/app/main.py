@@ -11,13 +11,19 @@ Notes:
   leaks tracebacks or internals to the client; full tracebacks go
   to the structured JSON log.
 - In production mode the app refuses to start with the placeholder
-  SECRET_KEY / SESSION_SECRET.
+  SECRET_KEY / SESSION_SECRET, and with SESSION_COOKIE_SECURE=false
+  (Phase 1, B-F13/C-5.2 — a session cookie over plain HTTP in
+  production would be sent in the clear).
+- Security headers are set on every response by middleware (Phase 1,
+  C-4.1/C-5.3); HSTS only in production (behind HTTPS). /docs,
+  /redoc and /openapi.json are disabled in production (C-5.4).
 - Tables are NOT auto-created by default. Set
   CL_CREATE_TABLES_ON_STARTUP=true (env var create_tables_on_startup)
   only for local dev / the smoke test / pytest; production schema is
   owned by Alembic migrations (backend/alembic/, another agent).
 """
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -45,6 +51,15 @@ if settings.environment == "production" and (
         "Set SECRET_KEY and SESSION_SECRET environment variables."
     )
 
+if settings.environment == "production" and not settings.session_cookie_secure:
+    raise RuntimeError(
+        "Refusing to start in production with SESSION_COOKIE_SECURE=false. "
+        "Set SESSION_COOKIE_SECURE=true when serving behind HTTPS."
+    )
+
+_IS_PRODUCTION = settings.environment == "production"
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     if settings.create_tables_on_startup:
@@ -53,20 +68,58 @@ async def lifespan(_app: FastAPI):
         Base.metadata.create_all(bind=engine)
     logger.info(
         "app_startup",
-        extra={"environment": settings.environment, "database_url_scheme": settings.database_url.split("://", 1)[0]},
+        extra={
+            "environment": settings.environment,
+            "database_url_scheme": settings.database_url.split("://", 1)[0],
+            # Phase 1 (C-8.4): say whether a .env file was actually
+            # loaded, so a wrong working directory (silent fallback
+            # to compiled-in defaults) is visible in the startup log.
+            "dotenv_loaded": os.path.exists(".env"),
+        },
     )
     yield
 
 
-app = FastAPI(title="CourierLedger M1", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="CourierLedger M1",
+    version="0.1.0",
+    lifespan=lifespan,
+    # Phase 1 (C-4.1/C-5.4): the OpenAPI docs enumerate every route,
+    # model and field — disable them in production.
+    docs_url=None if _IS_PRODUCTION else "/docs",
+    redoc_url=None if _IS_PRODUCTION else "/redoc",
+    openapi_url=None if _IS_PRODUCTION else "/openapi.json",
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_url],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Phase 1 (C-5.1): only the methods/headers the API actually uses.
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-CSRF-Token", "Idempotency-Key"],
 )
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Phase 1 (C-4.1/C-5.3): security headers on every response.
+    HSTS only in production — local dev/test serve plain HTTP, where
+    an HSTS header would be wrong (and ignored). The CSP is a basic
+    API-appropriate policy; the Vite frontend is served separately."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    )
+    if _IS_PRODUCTION:
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+    return response
 
 
 @app.exception_handler(Exception)

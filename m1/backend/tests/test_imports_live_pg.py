@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 from pathlib import Path
 
 import httpx
@@ -43,7 +44,7 @@ pytestmark = pytest.mark.skipif(
     not live_pg_enabled(), reason="live-PG tests need CL_LIVE_PG_PASSWORD"
 )
 
-PASSWORD = "correct-horse-battery-1"
+PASSWORD = secrets.token_urlsafe(16)  # Phase 1 (A-F5): random per run, not a shared literal
 FIXTURE = Path(__file__).parent / "data" / "generic_statement_fixture.csv"
 MAPPING = {
     "tracking_id": "Tracking ID",
@@ -141,7 +142,10 @@ def test_upload_fixture_live(live):
 
         listing = client.get(f"/api/workspaces/{workspace_id}/imports")
         assert listing.status_code == 200, listing.text
-        assert [b["batch_id"] for b in listing.json()] == [batch_id]
+        # Phase 1 (C-1.9): the list is paginated ({imports, total, ...}).
+        body = listing.json()
+        assert body["total"] == 1
+        assert [b["batch_id"] for b in body["imports"]] == [batch_id]
     finally:
         client.close()
 

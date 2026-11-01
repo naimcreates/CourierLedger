@@ -8,6 +8,7 @@
 
 import hashlib
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -18,12 +19,28 @@ from app.security import hash_token
 from conftest import get_csrf, login, post, register
 
 
-def _issued_token_from_log(caplog) -> str:
-    for record in caplog.records:
-        link = getattr(record, "reset_link", None)
-        if link:
-            return link.split("token=")[1]
-    raise AssertionError("no password-reset link was logged")
+def _issued_token(email: str) -> str:
+    """Test-only helper (Phase 1, B-F2): the raw reset token is never
+    logged anywhere, so tests obtain it by generating a token and
+    storing its hash via the service's own hashing — the same shape
+    request_password_reset stores — and returning the raw token.
+    The raw token is never written to a log."""
+    from app.security import generate_password_reset_token, hash_token
+
+    token = generate_password_reset_token()
+    with SessionLocal() as db:
+        from app.db.auth_models import User
+
+        user = db.execute(select(User).where(User.email == email)).scalar_one()
+        db.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=hash_token(token),
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+            )
+        )
+        db.commit()
+    return token
 
 
 def test_reset_token_stored_hashed_only(client, caplog):
@@ -31,16 +48,30 @@ def test_reset_token_stored_hashed_only(client, caplog):
     with caplog.at_level(logging.INFO, logger="app.services.auth_service"):
         resp = post(client, "/api/auth/password-reset/request", {"email": "gail@example.com"})
     assert resp.status_code == 200
-
-    raw_token = _issued_token_from_log(caplog)
-    assert raw_token and len(raw_token) >= 32
-
+    # The request endpoint created exactly one token row, stored as a
+    # SHA-256 hex digest — and no log record may carry a reset link
+    # or a raw token (Phase 1, B-F2).
     with SessionLocal() as db:
-        row = db.execute(select(PasswordResetToken)).scalar_one()
+        rows = db.execute(select(PasswordResetToken)).scalars().all()
+        assert len(rows) == 1
+        assert re.fullmatch(r"[0-9a-f]{64}", rows[0].token_hash)
+        assert rows[0].used_at is None
+    for record in caplog.records:
+        assert getattr(record, "reset_link", None) is None
+        assert "reset-password?token=" not in record.getMessage()
+        assert "token=" not in record.getMessage()
+    # The helper-created token proves the stored form is the hash of
+    # the raw token (and never the raw token itself).
+    raw_token = _issued_token("gail@example.com")
+    assert raw_token and len(raw_token) >= 32
+    with SessionLocal() as db:
+        row = db.execute(
+            select(PasswordResetToken).where(
+                PasswordResetToken.token_hash == hash_token(raw_token)
+            )
+        ).scalar_one()
         assert row.token_hash == hashlib.sha256(raw_token.encode()).hexdigest()
-        assert row.token_hash == hash_token(raw_token)
         assert row.token_hash != raw_token  # raw token is never stored
-        assert row.used_at is None
 
 
 def test_reset_request_unknown_email_still_200(client):
@@ -55,9 +86,8 @@ def test_reset_confirm_happy_path_and_reuse_rejected(client, caplog):
     login(client, "henry@example.com")
     assert client.get("/api/auth/me").status_code == 200
 
-    with caplog.at_level(logging.INFO, logger="app.services.auth_service"):
-        post(client, "/api/auth/password-reset/request", {"email": "henry@example.com"})
-    raw_token = _issued_token_from_log(caplog)
+    post(client, "/api/auth/password-reset/request", {"email": "henry@example.com"})
+    raw_token = _issued_token("henry@example.com")
 
     resp = post(
         client,
@@ -124,11 +154,14 @@ def test_reset_revokes_other_sessions(client, caplog):
     login(c2, "kate@example.com")
     assert c2.get("/api/auth/me").status_code == 200
 
-    with caplog.at_level(logging.INFO, logger="app.services.auth_service"):
-        post(client, "/api/auth/password-reset/request", {"email": "kate@example.com"})
-    raw_token = _issued_token_from_log(caplog)
+    post(client, "/api/auth/password-reset/request", {"email": "kate@example.com"})
+    raw_token = _issued_token("kate@example.com")
     post(client, "/api/auth/password-reset/confirm", {"token": raw_token, "new_password": "brand-new-password-2"})
 
     assert c2.get("/api/auth/me").status_code == 401
+    # Phase 1 (B-F1): revocation is UPDATE revoked_at, not DELETE —
+    # the rows remain, marked revoked.
     with SessionLocal() as db:
-        assert db.execute(select(UserSession)).scalar_one_or_none() is None
+        sessions = db.execute(select(UserSession)).scalars().all()
+        assert sessions, "revoked sessions must remain as rows"
+        assert all(s.revoked_at is not None for s in sessions)

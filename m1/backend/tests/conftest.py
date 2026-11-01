@@ -9,6 +9,7 @@ engine is created at import time.
 """
 
 import os
+import secrets
 
 os.environ["DATABASE_URL"] = "sqlite:////tmp/cl_m1_test.db"
 os.environ["ENVIRONMENT"] = "test"
@@ -23,8 +24,21 @@ from app.main import app  # noqa: E402
 from app.services import rate_limit  # noqa: E402
 
 
+# Phase 1 (A-F5): the default test-account password is random per
+# test, not a shared literal. register/login/authed_client all
+# default to it, so a test that registers then logs in with the
+# default still works; an explicitly supplied password is unchanged.
+_current_test_password: str = secrets.token_urlsafe(16)
+
+
+def _default_password() -> str:
+    return _current_test_password
+
+
 @pytest.fixture(autouse=True)
 def _fresh_db():
+    global _current_test_password
+    _current_test_password = secrets.token_urlsafe(16)
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     rate_limit.reset_for_tests()
@@ -50,19 +64,22 @@ def post(client: TestClient, path: str, payload: dict, csrf: bool = True):
     return client.post(path, json=payload, headers=headers)
 
 
-def register(client: TestClient, email: str, password: str = "correct-horse-battery-1", display_name: str = "Test User"):
+def register(client: TestClient, email: str, password: str | None = None, display_name: str = "Test User"):
+    password = password if password is not None else _default_password()
     resp = post(client, "/api/auth/register", {"email": email, "password": password, "display_name": display_name})
     assert resp.status_code == 201, resp.text
     return resp.json()
 
 
-def login(client: TestClient, email: str, password: str = "correct-horse-battery-1"):
+def login(client: TestClient, email: str, password: str | None = None):
+    password = password if password is not None else _default_password()
     resp = post(client, "/api/auth/login", {"email": email, "password": password})
     assert resp.status_code == 200, resp.text
     return resp.json()
 
 
-def authed_client(client: TestClient, email: str, password: str = "correct-horse-battery-1") -> TestClient:
+def authed_client(client: TestClient, email: str, password: str | None = None) -> TestClient:
+    password = password if password is not None else _default_password()
     register(client, email, password)
     login(client, email, password)
     return client

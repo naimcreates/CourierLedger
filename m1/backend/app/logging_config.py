@@ -1,9 +1,12 @@
 """Structured JSON logging for the M1 backend.
 
 One JSON object per line on stdout: timestamp, level, logger, message,
-plus any extra fields passed via the ``extra`` dict. No request bodies,
-passwords, tokens or financial content are ever logged by this module;
-callers must not pass secrets as extra fields.
+plus any extra fields passed via the ``extra`` dict. This module formats
+whatever it is given — it has no allow-list on extra fields — so it
+must never be handed secrets: callers must not pass request bodies,
+passwords, tokens or financial content as extra fields. (Phase 1,
+B-F2: the password-reset link used to be logged by a caller; it no
+longer is, and no log line may contain a raw token or reset link.)
 """
 
 import json

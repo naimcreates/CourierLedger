@@ -408,11 +408,10 @@ untouched. All data synthetic.
   `tests/test_settlement_live_pg.py` — **5 passed, 0 failed**
   under `CL_LIVE_PG_ROLE=courierledger_runtime` (incl. the new
   cross-batch test). NOTE: the documented dev-only placeholder
-  password (`dev-only-placeholder`) does NOT authenticate the
-  `courierledger` role on this container any more — the live run
-  used the password stored in gitignored `backend/.env`
-  (mode 600); the placeholder in `m1/README.md` is stale for this
-  container and needs updating by whoever owns that doc.
+  password stored in gitignored `backend/.env` (mode 600) is the
+  only one that authenticates the `courierledger` role on this
+  container — no documented password exists (Phase 1, 2026-11-01:
+  the old documented placeholder was retired).
 - **Full-suite caveat:** a full `pytest tests/ -q` run during this
   task reported **226 passed, 31 failed, 1 error** — but all 31
   failures were in the parallel shipments worker's
@@ -531,11 +530,11 @@ untouched (the coordinator wires the one router — see below);
   migration `0002`, 33 tables, 46 policies, 21 triggers, 5
   couriers) and the cluster restarted with `pg_ctlcluster 16 main
   start`. All live numbers above were run after that reinstall.
-  On this container the documented dev-only placeholder password
-  (`dev-only-placeholder`) DOES authenticate both the
-  `courierledger` (owner) and `courierledger_runtime` roles
-  (proven by the owner-role and runtime-role runs above) — the
-  part-2 note saying otherwise does not match the current state.
+  On this container the password stored in gitignored
+  `backend/.env` (a fresh random value since the Phase 1 rotation,
+  2026-11-01) authenticates both the `courierledger` (owner) and
+  `courierledger_runtime` roles (proven by the owner-role and
+  runtime-role runs above).
 
 ---
 

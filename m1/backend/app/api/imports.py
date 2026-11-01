@@ -21,11 +21,12 @@ it requires the CSRF double-submit check.
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile, status
+from fastapi.responses import JSONResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_csrf
+from app.api.deps import get_current_user, require_csrf, require_write_role
 from app.db.auth_models import User
 from app.db.models import ImportBatch
 from app.db.session import get_db, set_tenant_context
@@ -44,18 +45,18 @@ def _require_membership(db: Session, user: User, workspace_id: uuid.UUID):
     return membership
 
 
-@router.post("", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_csrf)])
+@router.post("", dependencies=[Depends(require_csrf)])
 async def upload_import(
     workspace_id: uuid.UUID,
     file: UploadFile = File(...),
     mapping: str = Form(...),
     merchant_courier_account_id: uuid.UUID = Form(...),
-    idempotency_key: str | None = Form(default=None),
-    idempotency_header: str | None = Header(default=None, alias="Idempotency-Key"),
+    idempotency_key: str | None = Form(default=None, max_length=128),
+    idempotency_header: str | None = Header(default=None, alias="Idempotency-Key", max_length=128),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_membership(db, user, workspace_id)
+    require_write_role(_require_membership(db, user, workspace_id))
     try:
         mapping_dict = json.loads(mapping)
     except (json.JSONDecodeError, TypeError):
@@ -63,12 +64,23 @@ async def upload_import(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="mapping must be a JSON object of canonical field -> source header.",
         ) from None
-    data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File is larger than the 10 MB local-dev limit.",
-        )
+    # Phase 1 (C-2.2): stream-read in 1 MB chunks and abort as soon as
+    # the 10 MB cap is crossed, instead of reading the whole file into
+    # memory and only then rejecting it.
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="File is larger than the 10 MB local-dev limit.",
+            )
+        chunks.append(chunk)
+    data = b"".join(chunks)
     if not data:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Uploaded file is empty."
@@ -83,6 +95,7 @@ async def upload_import(
             data=data,
             mapping=mapping_dict,
             idempotency_key=idempotency_header or idempotency_key,
+            content_type=file.content_type,
         )
     except csv_import.ImportAccessError:
         db.rollback()
@@ -93,35 +106,60 @@ async def upload_import(
     except csv_import.ImportFailedError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
-    return summary
+    # Phase 1 (C-2.4a): a batch that failed to parse is a 422, not a
+    # 201 — a client that checks only the status code must not think
+    # the upload succeeded. The parse_failed batch itself is still
+    # persisted (with its VALUE_UNPARSABLE error row), as before.
+    if summary.get("status") == "parse_failed":
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=summary
+        )
+    return JSONResponse(status_code=status.HTTP_201_CREATED, content=summary)
 
 
 @router.get("")
 def list_imports(
     workspace_id: uuid.UUID,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Paginated (Phase 1, C-1.9): same {imports, total, limit, offset}
+    envelope as the other list endpoints. The frontend unwraps it
+    (and still accepts the old bare-array shape)."""
     _require_membership(db, user, workspace_id)
     set_tenant_context(db, workspace_id)
+    total = db.execute(
+        select(func.count())
+        .select_from(ImportBatch)
+        .where(ImportBatch.merchant_id == workspace_id)
+    ).scalar_one()
     batches = db.execute(
         select(ImportBatch)
         .where(ImportBatch.merchant_id == workspace_id)
         .order_by(ImportBatch.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     ).scalars().all()
-    return [
-        {
-            "batch_id": str(b.id),
-            "status": b.status,
-            "row_count": b.row_count,
-            "parsed_row_count": b.parsed_row_count,
-            "error_row_count": b.error_row_count,
-            "file_object_id": str(b.file_object_id),
-            "mapping_snapshot": b.mapping_snapshot,
-            "created_at": b.created_at.isoformat() if b.created_at else None,
-        }
-        for b in batches
-    ]
+    return {
+        "imports": [
+            {
+                "batch_id": str(b.id),
+                "status": b.status,
+                "row_count": b.row_count,
+                "parsed_row_count": b.parsed_row_count,
+                "error_row_count": b.error_row_count,
+                "file_object_id": str(b.file_object_id),
+                "mapping_snapshot": b.mapping_snapshot,
+                "created_at": b.created_at.isoformat() if b.created_at else None,
+            }
+            for b in batches
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/{batch_id}")

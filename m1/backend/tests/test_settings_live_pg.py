@@ -5,7 +5,7 @@ database with the full schema + RLS + roles applied (see
 tests/live_pg.py). Skipped unless CL_LIVE_PG_PASSWORD is set.
 
 Run with the runtime role (the production path):
-CL_LIVE_PG_PASSWORD=<redacted> \
+CL_LIVE_PG_PASSWORD=<your-local-db-password> \
 CL_LIVE_PG_ROLE=courierledger_runtime \
 CL_LIVE_PG_PORT=8011 python -m pytest tests/test_settings_live_pg.py -q
 
@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import secrets
 import uuid
 from pathlib import Path
 
@@ -49,7 +50,7 @@ pytestmark = pytest.mark.skipif(
     not live_pg_enabled(), reason="live-PG tests need CL_LIVE_PG_PASSWORD"
 )
 
-PASSWORD = "correct-horse-battery-1"
+PASSWORD = secrets.token_urlsafe(16)  # Phase 1 (A-F5): random per run, not a shared literal
 MAPPING = {
     "tracking_id": "Tracking ID",
     "merchant_order_ref": "Order Ref",

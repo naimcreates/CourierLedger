@@ -126,30 +126,53 @@ export interface ApiOptions extends Omit<RequestInit, 'body'> {
   body?: unknown
 }
 
-/** Typed fetch wrapper: JSON in/out, HttpOnly-cookie session, CSRF header. */
+/** Typed fetch wrapper: JSON in/out, HttpOnly-cookie session, CSRF header.
+ *
+ * Phase 1 (C-6.2): on a 403 for a write, the cached CSRF token is
+ * cleared and the request is retried exactly once with a freshly
+ * fetched token (a stale token after login/logout was the common
+ * cause). On a 401 the cached token is cleared and a
+ * `cl:unauthorized` event is dispatched — App.tsx listens and
+ * redirects to /login after clearing the React Query cache. The
+ * ApiError is still thrown, so existing callers behave as before.
+ */
 export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const { body, headers, method = 'GET', ...rest } = options
   const isWrite = method.toUpperCase() !== 'GET' && method.toUpperCase() !== 'HEAD'
-  const finalHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(headers as Record<string, string> | undefined),
+
+  async function doFetch(retried: boolean): Promise<T> {
+    const finalHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(headers as Record<string, string> | undefined),
+    }
+    if (isWrite) {
+      const token = await getCsrfToken()
+      if (token) finalHeaders['X-CSRF-Token'] = token
+    }
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...rest,
+      method,
+      headers: finalHeaders,
+      credentials: 'include',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    if (res.status === 401) {
+      clearCsrfToken()
+      window.dispatchEvent(new CustomEvent('cl:unauthorized'))
+      throw new ApiError(res.status, await readErrorMessage(res))
+    }
+    if (res.status === 403 && isWrite && !retried) {
+      clearCsrfToken()
+      return doFetch(true)
+    }
+    if (!res.ok) {
+      throw new ApiError(res.status, await readErrorMessage(res))
+    }
+    if (res.status === 204) return undefined as T
+    return (await res.json()) as T
   }
-  if (isWrite) {
-    const token = await getCsrfToken()
-    if (token) finalHeaders['X-CSRF-Token'] = token
-  }
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...rest,
-    method,
-    headers: finalHeaders,
-    credentials: 'include',
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  if (!res.ok) {
-    throw new ApiError(res.status, await readErrorMessage(res))
-  }
-  if (res.status === 204) return undefined as T
-  return (await res.json()) as T
+
+  return doFetch(false)
 }
 
 /**
@@ -312,7 +335,13 @@ export interface ImportBatchSummary {
 }
 
 export async function listImports(workspaceId: string): Promise<ImportBatchSummary[]> {
-  return apiFetch<ImportBatchSummary[]>(`/api/workspaces/${workspaceId}/imports`)
+  // Phase 1 (C-1.9): GET /imports is paginated and returns the
+  // {imports, total, limit, offset} envelope. Older mocks / cached
+  // responses may still return a bare array — accept both.
+  const data = await apiFetch<ImportBatchSummary[] | { imports: ImportBatchSummary[] }>(
+    `/api/workspaces/${workspaceId}/imports`,
+  )
+  return Array.isArray(data) ? data : data.imports
 }
 
 export type MoneyDqState =

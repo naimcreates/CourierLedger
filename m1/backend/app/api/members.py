@@ -37,7 +37,9 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_csrf
 from app.db.auth_models import User
 from app.db.session import get_db
+from app.config import settings
 from app.services import member_service
+from app.services import rate_limit
 from app.services.member_service import (
     AlreadyMemberError,
     MemberValidationError,
@@ -116,6 +118,20 @@ def invite_member(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
+    # Phase 1 (B-F9): per-workspace invite rate limit. The unknown-
+    # email 422 is a residual enumeration oracle (invite requires
+    # owner/admin); the limit bounds how fast it can be probed, and
+    # the oracle is documented as accepted in SECURITY_REMEDIATION.md.
+    if rate_limit.is_limited(
+        "invite", str(workspace_id), settings.invite_max_attempts, settings.invite_window_seconds
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many invitations. Try again later.",
+        )
+    rate_limit.record_attempt(
+        "invite", str(workspace_id), settings.invite_max_attempts, settings.invite_window_seconds
+    )
     member, created = _map_errors(
         member_service.invite_member, db, user, workspace_id, body.email, body.role
     )

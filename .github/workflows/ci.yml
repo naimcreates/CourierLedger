@@ -12,12 +12,13 @@
 # run locally for this task (other workers are running pytest
 # concurrently against the shared SQLite test file).
 #
-# Secrets: the only secret is CI_POSTGRES_PASSWORD (repo secret, any
-# throwaway value — it only protects an ephemeral CI database holding
-# synthetic data). If the secret is not set, the literal fallback
-# `ci-only-placeholder` is used; it is a placeholder, never a real
-# password, and must never be reused outside CI. No other secret is
-# needed: SECRET_KEY / SESSION_SECRET are generated fresh per run.
+# Secrets: the only secret is CI_POSTGRES_PASSWORD (repo secret — a
+# fresh random value, rotated in Phase 1, 2026-11-01; it only protects
+# an ephemeral CI database holding synthetic data). There is NO
+# literal fallback: if the secret is not set the jobs fail closed
+# (see the "Require CI_POSTGRES_PASSWORD secret" step in each job
+# that needs the database). No other secret is needed: SECRET_KEY /
+# SESSION_SECRET are generated fresh per run.
 #
 # Database provisioning mirrors m1/README.md §3 exactly: create the
 # owner role + runtime role, create courierledger_app and
@@ -43,9 +44,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Throwaway CI-only database password. Prefer the repo secret
-  # CI_POSTGRES_PASSWORD when set; otherwise the literal placeholder.
-  CI_PG_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD || 'ci-only-placeholder' }}
+  # CI-only database password, from the repo secret
+  # CI_POSTGRES_PASSWORD. No fallback value: the jobs below fail
+  # closed when the secret is unset.
+  CI_PG_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
   POSTGRES_HOST: localhost
   POSTGRES_PORT: "5432"
   OWNER_ROLE: courierledger
@@ -74,6 +76,13 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
+
+      - name: Require CI_POSTGRES_PASSWORD secret
+        run: |
+          if [ -z "${CI_PG_PASSWORD}" ]; then
+            echo "::error::CI_POSTGRES_PASSWORD repo secret is not set; refusing to run with a placeholder password." >&2
+            exit 1
+          fi
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -229,6 +238,13 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
+
+      - name: Require CI_POSTGRES_PASSWORD secret
+        run: |
+          if [ -z "${CI_PG_PASSWORD}" ]; then
+            echo "::error::CI_POSTGRES_PASSWORD repo secret is not set; refusing to run with a placeholder password." >&2
+            exit 1
+          fi
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5

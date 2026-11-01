@@ -32,7 +32,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_csrf
+from app.api.deps import get_current_user, require_csrf, require_write_role
 from app.db.auth_models import User
 from app.db.models import OUTCOME_SOURCES, SHIPMENT_OUTCOMES
 from app.db.session import get_db
@@ -58,7 +58,7 @@ class CreateOrderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     merchant_order_ref: str = Field(min_length=1, max_length=500)
-    order_cod_poisha: StrictInt | None = Field(default=None, ge=0)
+    order_cod_poisha: StrictInt | None = Field(default=None, ge=0, le=10**15)
     currency: str = "BDT"
     ordered_at: datetime | None = None
 
@@ -84,7 +84,7 @@ class CreateShipmentRequest(BaseModel):
     outcome: str = "unknown"
     outcome_source: str | None = None
     is_cod_bearing: StrictBool = False
-    amount_to_collect_poisha: StrictInt | None = Field(default=None, ge=0)
+    amount_to_collect_poisha: StrictInt | None = Field(default=None, ge=0, le=10**15)
     partial_amount_evidence_ref: str | None = Field(default=None, max_length=500)
     merchant_courier_account_id: uuid.UUID | None = None
     shipped_on: date | None = None
@@ -127,7 +127,7 @@ def create_order(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_membership(db, user, workspace_id)
+    require_write_role(_require_membership(db, user, workspace_id))
     try:
         return shipment_service.create_order(
             db,
@@ -189,7 +189,7 @@ def create_shipment(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_membership(db, user, workspace_id)
+    require_write_role(_require_membership(db, user, workspace_id))
     try:
         return shipment_service.create_shipment(
             db,

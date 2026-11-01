@@ -3,17 +3,14 @@
 The endpoint returns the computed result only and persists nothing — there
 is no run store yet. These tests check the HTTP shape and that the engine
 result flows through unchanged.
+
+Phase 1 (B-F4/C-1.1): the endpoint now requires a live session + CSRF,
+so these tests use the authed main-app client from conftest. The
+unauthenticated cases live in tests/test_security_phase1.py.
 """
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.reconcile import router
-
-
-def _client():
-    app = FastAPI()
-    app.include_router(router)
-    return TestClient(app)
+from conftest import authed_client, post
 
 
 def _shipment(**over):
@@ -37,12 +34,10 @@ def _shipment(**over):
     return s
 
 
-def test_post_reconcile_matched_shipment():
-    r = _client().post(
-        "/api/reconcile",
-        json={"shipments": [_shipment()], "tolerance_poisha": 0},
-    )
-    assert r.status_code == 200
+def test_post_reconcile_matched_shipment(client):
+    authed_client(client, "rec-t1@example.com")
+    r = post(client, "/api/reconcile", {"shipments": [_shipment()], "tolerance_poisha": 0})
+    assert r.status_code == 200, r.text
     body = r.json()
     assert body["count"] == 1
     result = body["results"][0]
@@ -53,27 +48,27 @@ def test_post_reconcile_matched_shipment():
     assert "run_id" not in body and "run_id" not in result
 
 
-def test_post_reconcile_open_collection_only():
-    r = _client().post(
-        "/api/reconcile",
-        json={"shipments": [_shipment(
-            reported_collected_poisha=95000,
-            reported_deductions_total_poisha=7950,
-            reported_payout_poisha=87050)]},
-    )
-    assert r.status_code == 200
+def test_post_reconcile_open_collection_only(client):
+    authed_client(client, "rec-t2@example.com")
+    r = post(client, "/api/reconcile", {"shipments": [_shipment(
+        reported_collected_poisha=95000,
+        reported_deductions_total_poisha=7950,
+        reported_payout_poisha=87050)]})
+    assert r.status_code == 200, r.text
     assert r.json()["results"][0]["overall_status"] == "open"
 
 
-def test_post_reconcile_empty_batch():
-    r = _client().post("/api/reconcile", json={"shipments": []})
-    assert r.status_code == 200
+def test_post_reconcile_empty_batch(client):
+    authed_client(client, "rec-t3@example.com")
+    r = post(client, "/api/reconcile", {"shipments": []})
+    assert r.status_code == 200, r.text
     assert r.json() == {"results": [], "count": 0}
 
 
-def test_get_rules_returns_synthetic_fixtures():
-    r = _client().get("/api/rules")
-    assert r.status_code == 200
+def test_get_rules_returns_synthetic_fixtures(client):
+    authed_client(client, "rec-t4@example.com")
+    r = client.get("/api/rules")
+    assert r.status_code == 200, r.text
     fixtures = r.json()["fixtures"]
     assert {f["courier_fixture"] for f in fixtures} == {
         "Fixture Alpha", "Fixture Beta", "Fixture Gamma"}

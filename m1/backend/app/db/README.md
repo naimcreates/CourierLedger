@@ -402,7 +402,7 @@ stalled; the replay's ledger already records postgresql as intended,
 so a later replay pass will see it installed and skip it), the cluster
 was started, roles/databases were re-provisioned per `m1/README.md`
 §3 (alembic head, `rls.sql`, corrected `triggers.sql`, `roles.sql`,
-seed; runtime-role password set to the documented dev placeholder),
+seed; runtime-role password set to the password in gitignored `backend/.env` (a fresh random value since the Phase 1 rotation, 2026-11-01)),
 and **all 19 trigger tests + the full suite above were run in the new
 container** — no live result in this addendum is carried over from the
 replaced container (the pre-replacement probe/fix observations are

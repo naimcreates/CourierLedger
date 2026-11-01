@@ -52,14 +52,31 @@ def get_current_user_optional(
 
 def require_csrf(
     request: Request,
-    csrf_cookie: str | None = Cookie(default=None, alias="cl_csrf"),
-    csrf_header: str | None = Header(default=None, alias="X-CSRF-Token"),
+    csrf_cookie: str | None = Cookie(default=None, alias=settings.csrf_cookie_name),
+    csrf_header: str | None = Header(default=None, alias=settings.csrf_header_name),
 ) -> None:
     """Double-submit cookie check. Both the cookie and the header must
-    be present and equal. (Cookie/header names come from settings;
-    the aliases above match the defaults.)"""
+    be present and equal. (Phase 1, B-F13: the cookie/header names
+    come from settings — the aliases above are evaluated from settings
+    at import time, so a renamed cookie/header is honoured.)"""
     if not csrf_cookie or not csrf_header or not tokens_equal(csrf_cookie, csrf_header):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Missing or invalid CSRF token.",
+        )
+
+
+# Phase 1 (B-F3): viewer members are read-only. Every mutating
+# workspace endpoint enforces this AFTER the membership check, so a
+# non-member still gets 404 (existence is not leaked) while a viewer
+# gets 403. Owner/admin/member may write.
+WRITE_ROLES = ("owner", "admin", "member")
+
+
+def require_write_role(membership) -> None:
+    """Raise 403 when the caller's workspace role is viewer-only."""
+    if membership is None or membership.role not in WRITE_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Viewers have read-only access to this workspace.",
         )

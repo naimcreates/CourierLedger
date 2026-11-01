@@ -1,6 +1,7 @@
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { PlaceholderPage } from './components/PlaceholderPage'
 import { getMe } from './lib/api'
@@ -50,10 +51,32 @@ function ProtectedLayout() {
   return <Layout />
 }
 
+/**
+ * Phase 1 (C-6.2): global 401 handler. apiFetch dispatches
+ * `cl:unauthorized` whenever any API call returns 401 (e.g. a
+ * session expiring mid-use); this listener clears the React Query
+ * cache — so no stale protected data is shown — and redirects to
+ * /login. The ProtectedLayout guard still covers the initial load.
+ */
+function UnauthorizedRedirect() {
+  const navigate = useNavigate()
+  const client = useQueryClient()
+  useEffect(() => {
+    const onUnauthorized = () => {
+      client.clear()
+      navigate('/login', { replace: true })
+    }
+    window.addEventListener('cl:unauthorized', onUnauthorized)
+    return () => window.removeEventListener('cl:unauthorized', onUnauthorized)
+  }, [navigate, client])
+  return null
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <UnauthorizedRedirect />
         <Routes>
           <Route element={<ProtectedLayout />}>
             <Route index element={<DashboardPage />} />

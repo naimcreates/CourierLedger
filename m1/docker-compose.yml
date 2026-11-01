@@ -7,7 +7,13 @@
 # (see the frontend service note below).
 #
 # No real secrets are in this file. Copy ../.env.example to .env at the
-# m1/ root (or export the variables) and replace every CHANGE_ME value.
+# m1/ root (or export the variables) and set real values. Phase 1
+# (A-F7/C-8.2): no password or secret defaults to a placeholder here —
+# compose fails closed when POSTGRES_PASSWORD / SECRET_KEY /
+# SESSION_SECRET are unset. ENVIRONMENT is parameterised (default
+# development); the DB port binds to loopback only. Docker cannot run
+# in this VM, so this file is verified by YAML validation + inspection
+# only, not by `docker compose up` (B-2 still open).
 
 services:
   db:
@@ -16,10 +22,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-courierledger}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set (no placeholder default)}
       POSTGRES_DB: ${POSTGRES_DB:-courierledger}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - courierledger_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -31,8 +37,9 @@ services:
   # Backend API. The database must be PROVISIONED first (see
   # m1/README.md): alembic as the owner role, then rls.sql /
   # triggers.sql / roles.sql, and the runtime role provisioned with
-  # POSTGRES_PASSWORD (local dev only -- the same placeholder
-  # password is used for the owner and runtime roles). The app
+  # POSTGRES_PASSWORD (local dev only — the password set in the
+  # environment / .env, shared by the owner and runtime roles for
+  # local dev; never a committed value). The app
   # connects as the RUNTIME role (B-4), never as the owner role.
   backend:
     build:
@@ -41,11 +48,11 @@ services:
     container_name: courierledger-backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://courierledger_runtime:${POSTGRES_PASSWORD:-CHANGE_ME}@db:5432/${POSTGRES_DB:-courierledger}
-      SECRET_KEY: ${SECRET_KEY:-CHANGE_ME}
-      SESSION_SECRET: ${SESSION_SECRET:-CHANGE_ME}
+      DATABASE_URL: postgresql+psycopg://courierledger_runtime:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-courierledger}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set (no placeholder default)}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set (no placeholder default)}
       FRONTEND_URL: ${FRONTEND_URL:-http://127.0.0.1:5173}
-      ENVIRONMENT: development
+      ENVIRONMENT: ${ENVIRONMENT:-development}
       CREATE_TABLES_ON_STARTUP: "false"
     ports:
       - "8000:8000"

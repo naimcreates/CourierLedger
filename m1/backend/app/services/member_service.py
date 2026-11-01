@@ -500,7 +500,7 @@ def change_role(
     if target.role == "owner":
         raise MemberValidationError(
             "owner_role_immutable",
-            "The owner role cannot be changed here. Owner transfer is not supported in M9.",
+            "The owner role cannot be changed here. Owner transfer is a separate endpoint (POST /members/transfer-owner, M10).",
         )
     target.role = new_role
     target.updated_at = _utcnow()

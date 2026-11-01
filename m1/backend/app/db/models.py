@@ -135,6 +135,8 @@ ERROR_CODES = (
     "VALUE_UNPARSABLE",
     "DUPLICATE_TRACKING",
     "AMBIGUOUS_MATCH",
+    # Phase 1 (C-2.3): formula-like cell flagged at ingest.
+    "FORMULA_LIKE_VALUE",
 )
 MATCH_STATUSES = ("strong_matched", "human_confirmed", "unmatched", "ambiguous", "duplicate")
 MATCH_BASES = ("strong_tracking", "weak_order_ref")  # CL-03: never amount alone.
@@ -640,7 +642,7 @@ class FileObject(Base):
         UniqueConstraint("merchant_id", "sha256", name="uq_file_objects_merchant_sha256"),
         CheckConstraint("size_bytes >= 0", name="ck_file_objects_size_nonnegative"),
         CheckConstraint(
-            "content_type IN ('text/csv', 'application/vnd.ms-excel')",
+            "content_type IN ('text/csv', 'application/vnd.ms-excel', 'unknown')",
             name="ck_file_objects_content_type",
         ),
     )

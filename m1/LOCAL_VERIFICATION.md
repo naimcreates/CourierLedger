@@ -132,7 +132,7 @@ after use.
 The canonical CI provisions a `postgres:16` service container; here
 the same steps run against the VM's local cluster. `<password>` below
 is the local-dev password held in the gitignored `m1/backend/.env`
-(`DATABASE_URL`); it is the documented dev placeholder from
+(`DATABASE_URL`); it is the password stored in gitignored `backend/.env` (a fresh random value since the Phase 1 rotation, 2026-11-01) from
 `m1/README.md` §3. Never print it, never commit it, never reuse it
 outside local dev.
 
@@ -197,7 +197,7 @@ does not exist, skipping` lines — those are the scripts' idempotent
 
 ### Password drift — read this before you trust a live-test failure
 
-The DB role passwords have drifted from the documented placeholder
+The DB role passwords have drifted from the password in `backend/.env`
 more than once (container replacements in M6/M7/M8, and the
 self-hosted runner's provisioning in M12, which set both roles to the
 workflow's password value). **A live-suite failure with
@@ -384,7 +384,7 @@ re-tried blindly:
 - Two defects the attempt exposed, both fixed on 2026-11-01:
   1. **A real password was committed** in `ci-selfhosted.yml`
      (`CI_PG_PASSWORD` as a literal). Removed; the workflow now
-     uses `${{ secrets.CI_POSTGRES_PASSWORD || 'ci-only-placeholder' }}`,
+     uses `${{ secrets.CI_POSTGRES_PASSWORD }}` (Phase 1: no literal fallback — the jobs fail closed when the secret is unset),
      matching canonical CI. The value remains in git history
      (commits 6c6c03b–3e82c81) and cannot be removed without a
      history rewrite, which is not done; it only ever guarded
@@ -394,7 +394,7 @@ re-tried blindly:
      roles' passwords and dropped/recreated `courierledger_app` /
      `courierledger_dev`, breaking local `.env` authentication. The
      repo secret `CI_POSTGRES_PASSWORD` is now set to the documented
-     local-dev placeholder value, so any future self-hosted run
+     the same fresh random value as the local roles (Phase 1 rotation, 2026-11-01), so any future self-hosted run
      resets the roles to the same password local dev uses.
 - To revive a runner: download the actions-runner release for
   linux-x64, get a registration token
