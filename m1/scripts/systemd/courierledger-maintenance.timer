@@ -1,0 +1,18 @@
+[Unit]
+Description=Hourly CourierLedger maintenance (expired auth-row purge)
+
+[Timer]
+# Hourly. The purge is cheap (~1 s on the current database),
+# idempotent, and guarded by a PostgreSQL advisory lock, so an
+# hourly cadence costs nothing and bounds the lifetime of stale
+# rows to about an hour — matching the 1-hour password-reset
+# token expiry. A daily cadence would also be defensible; hourly
+# was chosen because the reset-token table otherwise accumulates
+# a full day of used tokens between runs.
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+Unit=courierledger-maintenance.service
+
+[Install]
+WantedBy=timers.target

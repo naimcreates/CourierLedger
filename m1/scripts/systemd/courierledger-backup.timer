@@ -1,0 +1,18 @@
+[Unit]
+Description=Daily CourierLedger encrypted database backup
+
+[Timer]
+# 02:30 UTC = 08:30 Asia/Dhaka — a low-traffic window for the
+# sellers this service targets. The backup is a short pg_dump
+# (measured ~2 s on the current 263 KB database); the window is
+# about not disturbing daytime use, not about dump duration.
+OnCalendar=02:30
+# If the host was down at 02:30, run as soon as it is back —
+# a backup that silently never runs is worse than no backup.
+Persistent=true
+# Spread the load if several timers share the host.
+RandomizedDelaySec=300
+Unit=courierledger-backup.service
+
+[Install]
+WantedBy=timers.target

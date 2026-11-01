@@ -3,6 +3,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 *.pem
 *.key
 id_rsa*
@@ -55,3 +56,7 @@ hidden_files/
 # Generated render-validation screenshots (regenerable; ~50 MB).
 # Keep the deliverable PDFs/XLSX and the .src HTML sources.
 files/*/.src/validate/
+
+# Encrypted database backups (credential-bearing: password/token hashes).
+# Produced by m1/scripts/backup_encrypted.sh; never committed.
+m1/backups/

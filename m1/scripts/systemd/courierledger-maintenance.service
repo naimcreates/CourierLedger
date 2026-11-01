@@ -1,0 +1,19 @@
+[Unit]
+Description=CourierLedger scheduled maintenance (expired auth-row purge)
+Documentation=file:///home/hatch/workspace/goals/courierledger-planning-and-market-validation/DATABASE_BACKUP_RECOVERY.md
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+User=root
+# The CLI reads the owner credential at runtime from
+# m1/backend/.env (MIGRATION_DATABASE_URL, else the DATABASE_URL
+# password) and never prints it. It runs as the table-owner role
+# (courierledger), never the runtime role — the runtime role has
+# no DELETE grant on user_sessions / password_reset_tokens.
+ExecStart=/home/hatch/workspace/goals/courierledger-planning-and-market-validation/m1/backend/.venv/bin/python /home/hatch/workspace/goals/courierledger-planning-and-market-validation/m1/scripts/maintenance.py --db courierledger_app --db courierledger_dev
+# One JSON line per database on stdout; a failed run exits
+# non-zero with a JSON error line. StandardOutput/StandardError
+# go to the journal by default — check failures with:
+#   journalctl -u courierledger-maintenance.service

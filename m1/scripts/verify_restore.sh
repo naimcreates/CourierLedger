@@ -5,6 +5,13 @@
 #   restore-db defaults to <source-db>_restore_verify.
 #   env-file defaults to m1/backend/.env (read at runtime, never printed).
 #
+#   <dump-file> may be a plain pg_dump -Fc file or an encrypted
+#   *.dump.gpg artifact from backup_encrypted.sh (Phase 3): a .gpg
+#   input is decrypted to a 0600 temp file first (passphrase from
+#   CL_BACKUP_PASSPHRASE_FILE or CL_BACKUP_PASSPHRASE, never a CLI
+#   argument), its SHA-256 is checked against the JSON sidecar when
+#   one exists, and the temp file is wiped on exit.
+#
 # Restores the dump into a SEPARATE fresh database (never the source
 # and never the working databases), then compares source vs restored:
 #   - object counts: tables, policies, functions, triggers, indexes,
@@ -34,6 +41,48 @@ if [ "$DST" = "$SRC" ]; then
   exit 2
 fi
 
+# Phase 3 (Stream A): an encrypted dump (*.dump.gpg, produced by
+# backup_encrypted.sh) is decrypted to a 0600 temp file first. The
+# passphrase comes ONLY from CL_BACKUP_PASSPHRASE_FILE (preferred)
+# or CL_BACKUP_PASSPHRASE — never a CLI argument, never printed.
+# When a JSON sidecar (<dump minus .gpg>.json) exists, the encrypted
+# SHA-256 recorded in it is checked before decryption, so a
+# corrupted or swapped artifact fails fast instead of restoring
+# garbage. The decrypted temp file is wiped by the EXIT trap below.
+DECRYPTED=""
+PASSPHRASE_TMP=""
+if [[ "$DUMP" == *.gpg ]]; then
+  if [ -n "${CL_BACKUP_PASSPHRASE_FILE:-}" ]; then
+    [ -r "$CL_BACKUP_PASSPHRASE_FILE" ] \
+      || { echo "passphrase file not readable: $CL_BACKUP_PASSPHRASE_FILE" >&2; exit 2; }
+    PASSPHRASE_ARG="$CL_BACKUP_PASSPHRASE_FILE"
+  elif [ -n "${CL_BACKUP_PASSPHRASE:-}" ]; then
+    PASSPHRASE_TMP="$(mktemp /tmp/cl-verify-passphrase-XXXXXX)"
+    chmod 600 "$PASSPHRASE_TMP"
+    printf '%s' "$CL_BACKUP_PASSPHRASE" > "$PASSPHRASE_TMP"
+    PASSPHRASE_ARG="$PASSPHRASE_TMP"
+  else
+    echo "encrypted dump requires CL_BACKUP_PASSPHRASE_FILE or CL_BACKUP_PASSPHRASE" >&2
+    exit 2
+  fi
+  SIDECAR="${DUMP%.gpg}.json"
+  if [ -f "$SIDECAR" ]; then
+    want="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['sha256_encrypted'])" "$SIDECAR")"
+    got="$(sha256sum "$DUMP" | cut -d' ' -f1)"
+    [ "$got" = "$want" ] || { echo "sidecar checksum mismatch for $DUMP — refusing to restore" >&2; exit 1; }
+    echo "sidecar checksum verified: $SIDECAR"
+  else
+    echo "note: no JSON sidecar found for $DUMP; skipping checksum pre-check" >&2
+  fi
+  DECRYPTED="$(mktemp /tmp/cl-verify-decrypted-XXXXXX.dump)"
+  chmod 600 "$DECRYPTED"
+  gpg --batch --yes --quiet --decrypt --passphrase-file "$PASSPHRASE_ARG" \
+      -o "$DECRYPTED" "$DUMP" \
+    || { echo "decrypt failed: $DUMP" >&2; exit 1; }
+  echo "decrypted $DUMP -> temp file (0600, wiped on exit)"
+  DUMP="$DECRYPTED"
+fi
+
 RUNTIME_PW="$(python3 - "$ENV_FILE" <<'EOF'
 import sys, urllib.parse
 env = {}
@@ -47,6 +96,10 @@ EOF
 
 cleanup() {
   local rc=$?
+  if [ -n "$DECRYPTED" ] && [ -e "$DECRYPTED" ]; then
+    if command -v shred >/dev/null 2>&1; then shred -u -- "$DECRYPTED" 2>/dev/null || rm -f -- "$DECRYPTED"; else rm -f -- "$DECRYPTED"; fi
+  fi
+  [ -n "$PASSPHRASE_TMP" ] && rm -f -- "$PASSPHRASE_TMP"
   if [ "$rc" -eq 0 ]; then
     su postgres -c "psql -d postgres -c \"DROP DATABASE IF EXISTS $DST;\"" >/dev/null
     echo "restore database $DST dropped (verification passed)"

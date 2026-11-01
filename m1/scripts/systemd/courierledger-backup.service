@@ -1,0 +1,31 @@
+[Unit]
+Description=CourierLedger encrypted database backup (daily)
+Documentation=file:///home/hatch/workspace/goals/courierledger-planning-and-market-validation/DATABASE_BACKUP_RECOVERY.md
+# The backup must never run while a restore drill is in progress
+# against the same database; the drill uses a separate database, so
+# there is no direct conflict — this is a note, not a constraint.
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+User=root
+# The passphrase file is read by backup_encrypted.sh from this
+# variable (see the script header): the passphrase itself is NEVER
+# written in a unit file. /etc/courierledger/backup.env contains
+# exactly one line:
+#   CL_BACKUP_PASSPHRASE_FILE=/home/hatch/.config/courierledger/backup.passphrase
+# The passphrase file lives under /home/hatch/.config (mode 0600,
+# root-owned) — NOT under /etc — because this VM's container has
+# been replaced repeatedly and /etc does not survive a replacement,
+# while the home directory does. A passphrase kept only in /etc
+# was lost exactly this way on 2026-11-01, orphaning an encrypted
+# backup (see DATABASE_BACKUP_RECOVERY.md). Both files are
+# root-owned mode 0600 and live outside the repo.
+EnvironmentFile=/etc/courierledger/backup.env
+ExecStart=/home/hatch/workspace/goals/courierledger-planning-and-market-validation/m1/scripts/backup_encrypted.sh courierledger_app
+# A failed backup must be visible: the script already exits
+# non-zero with a backup_failed JSON line; OnFailure lets the host
+# add alerting (mail / webhook) without touching the script.
+# StandardOutput/StandardError go to the journal by default.
+# The timer's Persistent=true replays a missed run after downtime.
