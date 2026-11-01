@@ -19,12 +19,35 @@
 # (runs-on: ubuntu-latest, postgres:16 service) stays authoritative
 # for GitHub-hosted runners once the account billing lock is fixed.
 #
-# Secrets: the only secret is CI_POSTGRES_PASSWORD (repo secret, any
-# throwaway value — it only protects an ephemeral CI database holding
-# synthetic data). If the secret is not set, the literal fallback
-# `ci-only-placeholder` is used; it is a placeholder, never a real
-# password, and must never be reused outside CI. No other secret is
-# needed: SECRET_KEY / SESSION_SECRET are generated fresh per run.
+# Secrets: the only secret is CI_POSTGRES_PASSWORD (repo secret, set
+# 2026-11-01 to the documented local-dev placeholder value so a
+# self-hosted run resets the shared roles to the same password local
+# dev uses — see m1/LOCAL_VERIFICATION.md "Password drift" — it only
+# protects an ephemeral CI database holding synthetic data). If the
+# secret is not set, the literal fallback `ci-only-placeholder` is
+# used; it is a placeholder, never a real password, and must never be
+# reused outside CI. No other secret is needed: SECRET_KEY /
+# SESSION_SECRET are generated fresh per run.
+#
+# PARKED 2026-11-01 (Milestone 12, CI-independent development): the
+# runner `courierledger-vm` went offline (its process is gone) and its
+# registration was removed; no self-hosted runner exists, so this
+# workflow's jobs will queue until one is re-registered. Do NOT
+# delete this file — it is the tested record of how CI runs on this
+# VM. Re-registration: download the actions-runner release, get a
+# registration token (POST /repos/naimcreates/CourierLedger/actions/
+# runners/registration-token), `./config.sh --url
+# https://github.com/naimcreates/CourierLedger --token <token>
+# --labels self-hosted,linux --unattended`, then `./run.sh` with
+# RUNNER_ALLOW_RUNASROOT=1. Known results so far: run 41288531890
+# (backend + e2e provisioning failed — shell syntax error in the
+# provisioning heredoc, fixed in 3e82c81), run 41290116524 (same
+# syntax error — the fix had not landed yet), run 41292188799
+# (frontend success; e2e FAILED — "Set up Node 24" never completed,
+# 30-minute job timeout, Node download/cache-restore stalled through
+# the egress proxy; backend job never started — runner went offline).
+# The canonical .github/workflows/ci.yml stays authoritative for
+# GitHub-hosted runners once the account billing lock is fixed.
 
 name: CI (self-hosted)
 
@@ -40,7 +63,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CI_PG_PASSWORD: c1c726bb9b22b608dc0df6df
+  CI_PG_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD || 'ci-only-placeholder' }}
   POSTGRES_HOST: localhost
   POSTGRES_PORT: "5432"
   OWNER_ROLE: courierledger
