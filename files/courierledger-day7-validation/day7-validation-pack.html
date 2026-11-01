@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CourierLedger — Day 7 Market Validation Pack</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  body { font-family: "Liberation Serif", Georgia, serif; font-size: 11pt; line-height: 1.45; color: #111; }
+  h1 { font-size: 22pt; line-height: 1.2; margin: 0 0 4pt 0; }
+  h2 { font-size: 14pt; margin: 18pt 0 6pt 0; padding-bottom: 3pt; border-bottom: 1.5pt solid #1a4d2e; page-break-after: avoid; }
+  h3 { font-size: 12pt; margin: 12pt 0 4pt 0; page-break-after: avoid; }
+  p, li { margin: 0 0 6pt 0; }
+  ul, ol { margin: 0 0 8pt 0; padding-left: 18pt; }
+  table { border-collapse: collapse; width: 100%; margin: 6pt 0 10pt 0; font-size: 10pt; }
+  th, td { border: 0.7pt solid #555; padding: 4pt 6pt; vertical-align: top; text-align: left; }
+  th { background: #e8f0e8; }
+  .cover-sub { font-size: 12pt; color: #333; }
+  .status { border: 1.2pt solid #1a4d2e; background: #f2f7f2; padding: 10pt 12pt; margin: 12pt 0; }
+  .warn { border: 1.2pt solid #8a6d00; background: #fff8e1; padding: 8pt 10pt; margin: 10pt 0; }
+  .rule { border: 1.2pt solid #7a1f1f; background: #fdf0f0; padding: 8pt 10pt; margin: 10pt 0; }
+  .small { font-size: 9.5pt; color: #333; }
+  .q { margin-left: 6pt; }
+  .q b { color: #1a4d2e; }
+  .bangla { font-style: italic; }
+  .check td:first-child { width: 22pt; text-align: center; font-size: 13pt; }
+  .pagebreak { page-break-before: always; }
+  .footer { font-size: 9pt; color: #555; border-top: 0.7pt solid #999; margin-top: 16pt; padding-top: 6pt; }
+  code { font-family: "Liberation Mono", monospace; font-size: 9.5pt; background: #f0f0f0; padding: 0 2pt; }
+</style>
+</head>
+<body>
+
+<h1>CourierLedger — Day 7 Market Validation Pack</h1>
+<p class="cover-sub">First seven days of customer discovery for Bangladeshi online sellers.<br>
+Prepared 1 November 2026. Customer discovery — <b>not</b> a software milestone. No code was changed for this pack.</p>
+
+<div class="status">
+<p><b>Status at issue — read first.</b> <b>No interviews, surveys, demos or results exist yet.</b> Every number in this pack that looks like a result is a <b>target</b> set before fieldwork, an <b>assumption</b> labelled as one, or a <b>threshold</b> copied from the 14-day playbook. Nothing in this pack is evidence. The evidence tracker is empty; the Day 7 scorecard is empty; no validation gate has passed. If fieldwork finds the problem does not exist, that is a valid result — the gates exist to stop a liked idea, not to ratify one.</p>
+<p><b>Day 7 targets (targets, not results):</b> 8 completed seller interviews · at least 50% reporting an unexplained difference in their last 3 settlement cycles · 60 minutes average monthly reconciliation time · 3 sellers willing to test the prototype with synthetic data. The tracker scorecard adds two more pre-set criteria: at least 16 evidence items logged, and at least 2 competitor/alternative rows with verification attempted.</p>
+<p><b>What this pack is:</b> the working kit for Days 1–7, built on the existing 14-day playbook and evidence tracker — recruitment strategy, a shortened 15–20 minute interview guide, screening criteria, a synthetic-only demo script for the M1 build, a day-by-day checklist, the scorecard method, and a report template. <b>What it is not:</b> a rewrite of the playbook. Where the playbook already covers something, this pack says so and points at it instead of duplicating it.</p>
+</div>
+
+<h2>Sources reused — what already existed</h2>
+<table>
+<tr><th>Material</th><th>What it already contained</th><th>How this pack uses it</th></tr>
+<tr><td>14-day validation playbook (13 pp., 31 Oct 2026)</td><td>Hypothesis (Sec. 1); assumptions A1–A11 with failure signals (Sec. 2); screening S1–S8 (Sec. 3); interview guide Q1–Q29, 35–40 min (Sec. 4); 14-day plan (Sec. 5); Day 7 / Day 14 scorecards, thresholds fixed before fieldwork (Sec. 6); metrics definitions (Sec. 7); competitor framework (Sec. 8); 7-step synthetic demo script (Sec. 9); data templates + consent checklist (Sec. 10); outreach message (Appendix).</td><td>Reused as the authority. This pack shortens, sequences and operationalises it for Days 1–7 only; it does not change any threshold, assumption or question wording where it quotes them.</td></tr>
+<tr><td>Evidence tracker (10 sheets, 148 formulas)</td><td>README; Screening_Log (30 rows); Interview_Log (40 rows); Evidence_Log (50 rows); Demo_Log (20 rows); Competitor_Log; Metrics_Dashboard (20 formula metrics); Scorecard_Day7; Scorecard_Day14; Lists &amp; Definitions. All logs empty.</td><td><b>The single place evidence is recorded.</b> Every metric in §6 is a formula over these sheets. The tracker structure and formulas were <b>not</b> changed. Proposed new fields (if any) are listed in §7 as proposals for Naim to approve — none were applied.</td></tr>
+<tr><td>M1 local build (Milestones 0–12)</td><td>Working local app: Dashboard, Imports (CSV upload + mapping snapshot), Runs, Shipments, Courier Statements (read-only), Settlement Batches, Bank Receipts, Reports. Backend 316 passed live, Vitest 50 passed, Playwright 3 passed (M12). <b>Not production-ready.</b></td><td>Demo surface for §4 only. What it cannot do is stated there, honestly.</td></tr>
+<tr><td>P0 disposable prototype</td><td>Synthetic demo dataset (14 shipments) and edge cases; 47 tests passed. Read-only.</td><td>Named synthetic examples for demo steps 4–7 (§4).</td></tr>
+</table>
+
+<p><b>Money language (playbook §1, kept throughout):</b> <i>expected</i> (what the seller expected to collect and be paid), <i>courier-reported</i> (what the courier statement says), and <i>bank-confirmed</i> (what actually arrived) are three different things and are never merged. An unexplained difference is recorded as unexplained — <b>never</b> as a confirmed loss. Bangla prompts from the playbook: expected amount — <span class="bangla">apni ja asha korechilen</span>; courier-reported — <span class="bangla">courier statement-e ja lekha ache</span>; bank-confirmed — <span class="bangla">bank-e ja joma hoyeche</span>; unexplained difference — <span class="bangla">hishebe meleni emon parthokko</span>. Do not translate it as “loss” (<span class="bangla">khoti</span>) unless the seller uses that word first.</p>
+
+<div class="rule">
+<p><b>Hard rules for the whole week.</b> (1) No real merchant financial data anywhere — not in the prototype, not in notes, not in the tracker. (2) Never ask for a seller's courier login, password, or account access. (3) Never describe CourierLedger's findings, features, prices or timelines before the seller has described their last settlement in their own words. (4) Do not contact sellers automatically — every message is sent by Naim, by hand, at most twice per seller. (5) Do not mark any gate as passed without tracker evidence. (6) A positive comment (“great idea”) counts for nothing in either gate.</p>
+</div>
+
+<h2>1. Seller recruitment strategy</h2>
+<h3>1.1 Who we are looking for (and who we are not)</h3>
+<p><b>Priority, in order:</b> (1) Facebook-first online sellers who take COD orders and check courier payments themselves; (2) sellers using <b>two or more</b> couriers (Steadfast, Pathao, Paperfly, RedX, eCourier) — multi-courier sellers carry the format-and-rules multiplication the hypothesis depends on (assumption A6); (3) sellers doing regular COD volume — screening keeps sellers with 20+ COD shipments in the last 30 days (playbook S3); (4) sellers who reconcile manually in a spreadsheet, notebook, or by hand — the incumbent workflow CourierLedger must beat; (5) small Shopify / WooCommerce merchants, because several existing tools are Shopify-only and the open question (A7) is whether non-Shopify / Facebook-first sellers are served at all.</p>
+<p><b>Not the target this week:</b> prepaid-only sellers; sellers whose settlement checking is fully outsourced with no seller involvement; courier or software sellers; sellers with no COD in the last 30 days. Disqualifying them is not failure — a high disqualify rate is itself evidence about the market, and every disqualification reason is logged in Screening_Log.</p>
+<p><b>Day 7 target mix (from the playbook's 14-day mix, scaled to 8):</b> 8 completed interviews · at least 3 couriers represented · at least 4 Facebook-first sellers · a spread of volumes (under 100, 100–500, over 500 shipments/month). The mix is a recruitment target, not a result.</p>
+
+<h3>1.2 Where to find them (no automation, no scraping, no bought lists)</h3>
+<table>
+<tr><th>Channel</th><th>How to use it</th><th>What to log</th></tr>
+<tr><td>Facebook groups / communities for Bangladeshi online sellers</td><td>Post the <b>screening questions</b>, not a product pitch (playbook §3). Reply in comments/DM only to sellers who answer. One post per group; do not spam the same group twice in the week.</td><td>Group name + date posted; Screening_Log “recruitment channel” per seller.</td></tr>
+<tr><td>Warm introductions</td><td>Ask accountants, packaging suppliers and seller peers for one introduction each. Ask every interviewee at the end for one introduction (guide Q12/D12). Introductions are the Day 6 second wave.</td><td>Who introduced whom (seller code only).</td></tr>
+<tr><td>Direct outreach to shops with public pages showing COD delivery</td><td>Message the page directly (see §1.4). Check the page shows real selling activity and COD delivery before messaging. At most <b>two</b> contacts per seller, then stop.</td><td>Page/shop code, date of first and (if any) second message, outcome.</td></tr>
+<tr><td>Naim's own network</td><td>Friends / peers who sell online. These are the fastest first interviews — but they must pass the same screen (S1–S8); a friendly seller who does not reconcile is a disqualification, not an interview.</td><td>Same as above; note “own network” as the channel.</td></tr>
+</table>
+<p><b>Do not:</b> scrape seller phone numbers or emails; buy or rent contact lists; message the same seller more than twice; post in groups that forbid research or promotional posts; promise payment, discounts or a free product to get an interview (see §1.5 on incentives).</p>
+
+<h3>1.3 Funnel math — how many sellers to contact (assumptions, labelled)</h3>
+<p>The numbers below are <b>assumptions</b>, not facts. They exist so Naim can see whether the plan is feasible before starting, and so a shortfall can be diagnosed (which step leaked?) instead of guessed at. If the real rates differ, record the real rates in the Day 7 report and use them for Days 8–14.</p>
+<table>
+<tr><th>Step</th><th>Assumed rate</th><th>Count (to land 8 interviews)</th><th>Why this assumption</th></tr>
+<tr><td>Sellers contacted</td><td>—</td><td><b>60</b></td><td>Starting point; see note below.</td></tr>
+<tr><td>Respond / screened (S1–S8 asked)</td><td>50%</td><td>30</td><td>Assumption: half of messaged sellers reply at all. Facebook page owners reply more than cold contacts; group posts convert worse. <b>Assumption.</b></td></tr>
+<tr><td>Eligible after screening</td><td>50%</td><td>15</td><td>Assumption: half of screened sellers fail a screen — most commonly no COD in the last 30 days, under 20 shipments/month, or no one checks settlements. <b>Assumption.</b></td></tr>
+<tr><td>Book an interview</td><td>65%</td><td>10</td><td>Assumption: about two-thirds of eligible sellers agree to 15–20 minutes. The short format and “not selling anything” wording are what make this plausible. <b>Assumption.</b></td></tr>
+<tr><td>Show up / complete</td><td>80%</td><td><b>8</b></td><td>Assumption: one in five booked interviews no-shows or cancels. Book 10 to land 8. <b>Assumption.</b></td></tr>
+</table>
+<p><b>Reconciliation with the playbook:</b> the playbook's Day 1 asks for a prospect list of 30. That list is the <i>first wave</i> (own network + warm introductions + the most promising direct contacts), not the whole funnel. If the first wave yields fewer than ~4 booked interviews by end of Day 3, add a second wave of 30 (group posts + more direct outreach) on Day 4 — do not lower the screening bar to fill seats. Two interviews per day is the realistic pace for one researcher including same-day tracker coding (playbook §5).</p>
+
+<h3>1.4 Outreach messages (copy-paste versions in <code>day7-outreach-messages.md</code>)</h3>
+<p>Full Bangla and English variants — initial message, one follow-up, and answers to the two questions sellers ask most (“what is this for?” / “do I have to share my statements?”) — are in the companion file. Principles, from the playbook Appendix: send no product description; say plainly that nothing is being sold and no account details or statements are needed; offer to work around their schedule; if asked what the research is for, answer honestly and briefly — “To understand whether checking courier payments is a real problem for sellers, before deciding whether anything should be built for it.” Do not name features, prices or timelines. The 15–20 minute length is stated up front; the playbook's original 30–40 minute wording is <b>not</b> used for Day 7 recruitment (the shortened guide is what is being offered).</p>
+
+<h3>1.5 Incentives — a decision for Naim, not assumed</h3>
+<p><b>No incentive is promised in any message in this pack.</b> Whether to offer one (for example mobile recharge or a small thank-you after the interview) is Naim's decision, and it must be decided <i>before</i> the first message goes out — changing it mid-week would bias who agrees. Considerations: an incentive may raise response rates but can also attract sellers who do not reconcile; if one is offered, record it in the Day 7 report and keep the amount the same for every seller. <b>Never</b> offer a discount on, or free use of, CourierLedger — the product is not for sale and not production-ready.</p>
+
+<h2 class="pagebreak">2. Interview guide — 15–20 minutes, behaviour not validation</h2>
+<p><b>What this guide is:</b> a shortened version of the playbook's 35–40 minute guide (Q1–Q29) for the Day 7 pace — two interviews a day plus same-day coding. It keeps the core of the method (walk through the <i>last</i> settlement, in detail) and defers the rest to Days 8–14, when the full guide is used. <b>Reuse map:</b> every question below names the playbook question it comes from. Nothing here contradicts the playbook; where a playbook question is shortened, the note says so.</p>
+
+<h3>2.1 Before the call (2 minutes, not counted in the 15–20)</h3>
+<ul>
+<li>Confirm the seller passed screening (S1–S8) and has a Screening_Log row with an Interview ID (V-01, V-02, …) already assigned.</li>
+<li>Have the interview-notes template open (<code>day7-interview-notes-template.md</code>) and the tracker ready. Do not take notes in a separate app and copy later — same-day coding is non-negotiable (playbook §4).</li>
+<li>Check the consent wording (§2.2) and the Bangla money-term prompts. If recording, ask permission first; if they say no, take written notes only.</li>
+</ul>
+
+<h3>2.2 Opening + consent (1 minute)</h3>
+<p class="q"><i>“I am researching how online sellers check courier payments. I am not selling anything in this call. I will ask about the last time you did it, step by step — about 15 to 20 minutes. Please do not share account numbers, customer details or full statements. Is that okay, and may I take notes?”</i></p>
+<p>If they ask what the research is for: <i>“To understand whether checking courier payments is a real problem for sellers, before deciding whether anything should be built for it.”</i> Then start. Do not name CourierLedger, its findings, or any feature before the seller has described their last settlement.</p>
+
+<h3>2.3 The questions (15–20 minutes)</h3>
+
+<p><b>A. Business context — 2 minutes</b></p>
+<p class="q"><b>D1.</b> What do you sell, and through which channels? <span class="small">(Playbook Q1.)</span></p>
+<p class="q"><b>D2.</b> Which couriers do you use now, and why those? <span class="small">(Playbook Q2.)</span></p>
+<p class="q"><b>D3.</b> Roughly how many COD shipments in a normal month — under 100, 100–500, or over 500? <span class="small">(Playbook Q3; band only, never exact revenue.)</span></p>
+
+<p><b>B. Walk through the last settlement — 7 minutes (the core; do not rush this)</b></p>
+<p class="q"><b>D4.</b> Think of the most recent courier payment you checked. Which courier, and what period did it cover? <span class="small">(Playbook Q4.)</span></p>
+<p class="q"><b>D5.</b> Walk me through it, step by step, from receiving the payment to deciding it was right — or not right. What did you have open — courier dashboard, statement file, order list, bank or bKash record, notebook, spreadsheet? <span class="small">(Playbook Q5 + Q6 combined.)</span></p>
+<p class="q"><b>D6.</b> How long did that last check take, start to finish? What took the longest? And how often does this checking happen — every settlement, weekly, monthly? <span class="small">(Playbook Q9 + Q7 combined. Record the number they give; do not round up.)</span></p>
+<p class="q"><b>D7.</b> Who does this checking — you, a team member, an accountant? How do you keep track of orders that were delivered, partially delivered, returned or cancelled? <span class="small">(Playbook Q8 + Q10 combined.)</span></p>
+
+<p><b>C. Differences and pain — 4 minutes (ask neutrally; never use the word “loss”)</b></p>
+<p class="q"><b>D8.</b> In the last three settlement cycles, was there any amount that did not match what you expected? Please describe the most recent one. <span class="small">(Playbook Q12. This is the question the ≥50% target is measured from. If they cannot recall, record “unknown” — never 0.)</span></p>
+<p class="q"><b>D9.</b> What did you do about it? What did the courier say or do? Have you ever left a difference unresolved — and what happened to that amount in your books? <span class="small">(Playbook Q13 + Q14 combined.)</span></p>
+
+<p><b>D. Bank check and current tools — 3 minutes</b></p>
+<p class="q"><b>D10.</b> How do you confirm the money actually reached your bank or mobile-money account? Can you connect a bank credit to the specific shipments in a statement? <span class="small">(Playbook Q19 + Q20 combined; Q21 deferred to Days 8–14.)</span></p>
+<p class="q"><b>D11.</b> What tools do you use for this today — spreadsheet, accounting software, courier dashboard, notebook, something else? What does each one do well or badly? Have you ever paid for help with this — staff time, an accountant, software — and what did it cost, roughly? <span class="small">(Playbook Q22 + Q23 combined. Past spend only; never ask what they <i>would</i> pay.)</span></p>
+
+<p><b>E. Close — 2 minutes</b></p>
+<p class="q"><b>D12.</b> Two things before we finish. First — is there a part of checking courier payments I should have asked about and did not? <span class="small">(Playbook Q27.)</span> Second — may I invite you to a short test session using example data only, no real statements needed? If yes, let us book the date now. And who else checks courier payments carefully and might talk to me? <span class="small">(Playbook Q28 + Q29 combined. A booked date is a commitment; verbal interest is not.)</span></p>
+
+<h3>2.4 What was deferred to Days 8–14 (full 35–40 minute guide)</h3>
+<p>Playbook Q11 (which charges appeared, how each is verified), Q15 (how charges were agreed / where written down), Q16–Q18 (returned-parcel charges, partial-delivery amounts, return fees owed outside a payout), Q21 (record-keeping afterwards), Q24–Q26 (what freed-up time would be used for, what they tried in the last six months, what they spent to reduce errors). These matter — especially Q15–Q18, which are the only route to merchant-confirmed courier evidence (OD-12, B-1 in the original gating sense) — but they do not fit a 15–20 minute first conversation, and the Day 7 gate does not need them. Do not improvise them into a Day 7 interview; use the full guide from Day 8.</p>
+
+<h3>2.5 Interviewer notes — how to run it well</h3>
+<ul>
+<li><b>Probe with the last example, not with opinions.</b> “Can you give me the most recent time that happened?” beats “Does that happen often?” If they generalise (“couriers always cheat”), ask for the last specific case, with the courier name and the settlement period.</li>
+<li><b>Write what they did and said, in order.</b> Interpretation goes in the separate “strongest evidence” sentence after the interview, never mixed into the account. Numbers are recorded exactly as stated, with the question number beside them, so tracker coding can be audited.</li>
+<li><b>Blank fields stay blank.</b> An unanswered question is data; never fill a gap from a later guess, and never convert “don't know” into 0 — in the tracker, a blank amount is unknown.</li>
+<li><b>When to stop.</b> If the seller gets uncomfortable, offers real statements, or asks for help with a live dispute: stop that line, thank them, and note it. Do not accept files, do not look at their courier account, do not advise on a live dispute.</li>
+<li><b>Never ask:</b> “Would you use a tool that…?”, “Would you pay X taka for…?”, “Do you like this idea?” Hypothetical enthusiasm is not evidence. Willingness to test is measured only by a booked demo/test date (D12), and willingness to pay only by past spend (D11).</li>
+<li><b>After every interview (10 minutes, non-negotiable):</b> complete one Interview_Log row, log at least two Evidence_Log items (one for and one against the hypothesis where they exist), save two verbatim quotes (with permission), and write one sentence: “The strongest evidence for / against the hypothesis in this interview was …”. Record disconfirming interviews with the same care as confirming ones — they decide the gates.</li>
+</ul>
+
+<h2>3. Seller screening criteria (Day 7)</h2>
+<p>Screen on <b>current behaviour only</b> — never on hypothetical interest in a product. Use the playbook's S1–S8 verbatim (Bangla or English as the seller prefers). The table below is the Day 7 application of those rules, with the target mix added.</p>
+<table>
+<tr><th>ID</th><th>Screening question</th><th>Keep if</th><th>Tracker field</th></tr>
+<tr><td>S1</td><td>Do you sell online and deliver through a courier in Bangladesh?</td><td>Yes</td><td>Bangladesh based? / Sells online?</td></tr>
+<tr><td>S2</td><td>In the last 30 days, did customers pay cash on delivery for any orders?</td><td>Yes — COD is live</td><td>Uses COD courier?</td></tr>
+<tr><td>S3</td><td>Roughly how many COD shipments did you send in the last 30 days?</td><td>20 or more; record the band</td><td>Shipments / month</td></tr>
+<tr><td>S4</td><td>Which couriers did you use in the last 30 days? (Steadfast, Pathao, Paperfly, RedX, eCourier, other)</td><td>At least one named courier in scope</td><td>Couriers used (text) + No. of couriers</td></tr>
+<tr><td>S5</td><td>When the courier pays you, who checks whether the amount is right — you, a team member, an accountant, or no one?</td><td>Seller checks or supervises</td><td>Reconciles settlements?</td></tr>
+<tr><td>S6</td><td>When did you last check a courier payment? What did you compare it against?</td><td>Within the last 30 days; can describe it</td><td>— (note in Screening_Log)</td></tr>
+<tr><td>S7</td><td>Which channels do you sell through? (Facebook page, website, WooCommerce, Shopify, marketplace, other)</td><td>Record; ensure the mix (§1.1)</td><td>— (note in Screening_Log)</td></tr>
+<tr><td>S8</td><td>Are you willing to talk for 15–20 minutes about that checking process? No sales pitch, no need to share account numbers or full statements.</td><td>Yes, with consent recorded</td><td>Interview status</td></tr>
+</table>
+<p><b>Eligibility (tracker formula — do not override it):</b> a seller is eligible only if based in Bangladesh, selling online, using a COD courier, and reconciling (or receiving) courier settlements. <b>Disqualify if:</b> no COD in the last 30 days; settlement checking is fully outsourced with no seller involvement; the person sells courier or software services. Log every disqualification with its reason — a high disqualify rate is itself evidence about the market. <b>Day 7 mix check before booking:</b> before confirming interviews 7 and 8, check the mix — if all 6 so far are single-courier Shopify sellers, the last two slots must go to Facebook-first or multi-courier sellers, or the mix target is reported as missed.</p>
+<p class="small"><b>Proposal (not applied — needs Naim's approval):</b> the tracker has no field for recruitment channel per interview. The playbook says to log which channel produced each interview, but Screening_Log has no column for it. Proposal: use the Screening_Log “Interview status” note area, or add a “Recruitment channel” column to Screening_Log in a future tracker revision. Do not change the spreadsheet now.</p>
+
+<h2>4. Synthetic demo script — what the M1 build can actually show</h2>
+<div class="warn">
+<p><b>Hard rules.</b> Synthetic data only — the P0 demo dataset and the M1 generic statement fixture. Never upload a seller's real statement, even if they offer it; if they offer, stop, thank them, switch back to the synthetic dataset, and note the offer in Demo_Log (do not accept the file). Never ask for courier logins or account access. Never present synthetic results as customer findings. Never claim the demo shows a feature that is still pending. Say at the start, out loud: <i>“This is invented example data. Nothing here is a real seller's money.”</i></p>
+</div>
+<p><b>Which product to demo:</b> the <b>M1 local build</b> carries the end-to-end flow (import → run → settlement → bank receipt → variance). The <b>P0 prototype</b> carries the named synthetic examples for steps 4–7 (its 14-shipment demo dataset). Use M1 for steps 1–3 and 8, P0 for steps 4–7 — and say which one is on screen at each step. Both run locally only; there is no public link. A demo therefore happens on Naim's screen (in person or screen-share), not by sending the seller a link.</p>
+<table>
+<tr><th>Step (time)</th><th>Screen</th><th>What to show</th><th>What to ask (narrate the question, not the verdict)</th></tr>
+<tr><td>1. CSV import (2 min)</td><td>M1 → Imports → Upload</td><td>Upload <code>m1/backend/tests/data/generic_statement_fixture.csv</code> (12 rows; 10 parsed, 6 error rows in the e2e run). Show the mapping snapshot and the import detail with parse/match statuses, raw values verbatim, and data-quality states.</td><td>“Does this look like the file or screen you start from?”</td></tr>
+<tr><td>2. Column mapping (2 min)</td><td>M1 → Imports → mapping snapshot</td><td>How columns are matched to fields; the mapping is stored immutably per import.</td><td>“What does your statement call these same things?”</td></tr>
+<tr><td>3. Results table (3 min)</td><td>M1 → Runs → run detail</td><td>One run from the import; results with the five statuses — matched (মিলেছে), mismatch (অমিল), needs review (যাচাই প্রয়োজন), open (খোলা), matched with tolerance — with Bangla labels. Ask the seller to explain in their words what each row is telling them; their interpretation is the data.</td><td>“In your own words, what is this row telling you?”</td></tr>
+<tr><td>4. Under-collection (2 min)</td><td>P0 demo dataset, TRK-0002</td><td>Expected ৳1,000.00, courier-reported collected ৳950.00. Collection variance −৳50.00 — but the contractual payout is still matched (overall status <i>open</i>, not <i>mismatch</i>). Watch whether the seller finds that distinction clear or confusing; record it.</td><td>“Has this happened to you? What did you do?”</td></tr>
+<tr><td>5. Fee discrepancy (2 min)</td><td>P0 demo dataset, TRK-0003</td><td>Expected vs reported delivery fee differ (৳70.00 vs ৳90.00); fee/tax variance +৳20.00. The contractual delivery fee (৳70.00) is shown as merchant-confirmed with evidence — note that these are <i>fixture</i> values, not a real Steadfast/Pathao contract.</td><td>“What would you do next with this?”</td></tr>
+<tr><td>6. Statement inconsistency (2 min)</td><td>P0 demo dataset, TRK-0010</td><td>The statement's own arithmetic does not hold (residual −৳25.00). Record whether the seller has seen this pattern before — yes/no, no prompting.</td><td>“Have you seen a statement that did not add up?” (then stop; do not prompt further)</td></tr>
+<tr><td>7. Data-quality warnings (2 min)</td><td>P0 demo dataset, TRK-0005 + TRK-0008</td><td>TRK-0005: contractual delivery fee not confirmed → fees/payouts shown as “cannot calculate exactly”, status needs review. TRK-0008: blank COD-fee line — blank is unknown, never treated as zero. Ask whether that matches how they would want unknown values treated.</td><td>“If a charge is missing from your statement, would you rather see it as zero or as ‘cannot calculate’?”</td></tr>
+<tr><td>8. Bank check (2 min, M1 only)</td><td>M1 → Settlement Batches → batch detail</td><td>Record a receipt, mark it complete, allocate it, calculate variance — and show that the variance is <b>NULL with a reason</b> until the batch is fully allocated and its receipts complete. This is the bank-confirmed side, kept separate from courier-reported payouts.</td><td>“How do you connect a bank credit back to specific shipments today?”</td></tr>
+</table>
+<p><b>Observe, do not score enthusiasm.</b> Record in Demo_Log: could the seller explain each finding back correctly? Where did they hesitate or misread? Did they match any step to their own recent example (the metric that counts — “Steps shown” and “matched to their own example” are tracker formulas)? Any finding they said they would act on, and the action they named. Close with the only commitment question that counts: <i>“May I follow up with a test using example data shaped like your statement headers?”</i> Book a date or record a no.</p>
+<p><b>What the M1 build cannot demo today (say so if asked, do not improvise):</b> bank CSV import (excluded from the MVP by design); real courier rate cards or rule versions (no merchant-confirmed Steadfast/Pathao evidence exists — Fixture Alpha/Beta/Gamma are synthetic fixtures, labelled as such, never real contracts); multi-courier rule comparison beyond the fixture names; any production behaviour (no deployment, no real data, password reset is log-only and irrelevant to a demo). If a seller asks for a feature that does not exist, the answer is “That is not built yet” — recorded in Demo_Log notes as a gap they named, not promised.</p>
+
+<h2 class="pagebreak">5. Seven-day execution checklist</h2>
+<p>Owner for every task is <b>Naim</b>. One researcher, two interviews a day maximum, tracker coded the same day. Day 7 is a gate day — no new interviews. “Evidence” means a tracker row, not a memory.</p>
+<table class="check">
+<tr><th>☐</th><th>Day</th><th>Tasks</th><th>Done when (evidence)</th></tr>
+<tr><td>☐</td><td><b>Day 1 — Prepare</b></td><td>Read playbook §1–§4 and this pack once. Freeze the thresholds (they are already fixed — do not move them). Set up the tracker (it is ready and empty). Build the first-wave prospect list: 30 sellers with channel noted (own network + warm introductions + direct contacts). Decide the incentive question (§1.5) and write it down. Prepare the demo: start the M1 app locally once and walk steps 1–3 and 8; open the P0 demo dataset once for steps 4–7.</td><td>Prospect list of 30 exists; incentive decision recorded; demo walked once without errors.</td></tr>
+<tr><td>☐</td><td><b>Day 2 — Recruit</b></td><td>Send screening (S1–S8) to the first wave. Post in 1–2 seller groups (screening questions, not a pitch). Ask 3 warm contacts for introductions. Log every contact in Screening_Log. Target: 5+ interviews booked for Days 3–5.</td><td>Screening_Log rows started; ≥5 interviews booked (dates in Interview status).</td></tr>
+<tr><td>☐</td><td><b>Day 3 — First interviews</b></td><td>Interviews 1–2 (guide §2). Code each in the tracker the same day (Interview_Log row + ≥2 Evidence_Log items + 2 quotes + strongest-evidence sentence). Note the mix so far (couriers, channels, volumes).</td><td>2 completed Interview_Log rows; evidence items logged.</td></tr>
+<tr><td>☐</td><td><b>Day 4 — Interviews + second wave</b></td><td>Interviews 3–4, same-day coding. If bookings are below 4 cumulative, start the second wave of 30 (group posts + direct outreach). First synthetic demo if an interviewee from Day 3 booked one (Demo_Log row, synthetic-only confirmed).</td><td>4 rows cumulative; second wave started if needed; demo row if held.</td></tr>
+<tr><td>☐</td><td><b>Day 5 — Interviews + demos</b></td><td>Interviews 5–6, same-day coding. Demos for willing sellers (Demo_Log). Begin hands-on competitor checks if a seller named a tool (Competitor_Log — vendor claim vs hands-on, separate). Check the mix: if a segment is missing, steer the last bookings (§3).</td><td>6 rows cumulative; demos logged; mix checked.</td></tr>
+<tr><td>☐</td><td><b>Day 6 — Follow up + finish</b></td><td>Interviews 7–8, same-day coding. Follow up with everyone who said yes to a test (D12) and book dated test sessions — a date is a commitment, verbal interest is not. Collect introductions for Days 8–14. Write the interim pattern note (labelled interim, one page maximum): what is emerging, what is missing.</td><td>8 rows cumulative (or the shortfall named); dated test sessions booked; interim note written.</td></tr>
+<tr><td>☐</td><td><b>Day 7 — Score + decide</b></td><td><b>No new interviews.</b> Score the Day 7 scorecard from the tracker (§6) exactly as written. Re-read two disconfirming interviews in full before deciding. Write the Day 7 report from the template (§7) and record the decision (A / B / C) with its reasoning. Decide what changes in Days 8–14.</td><td>Scorecard_Day7 filled by formulas + decision written; Day 7 report complete.</td></tr>
+</table>
+<p><b>If bookings fall short:</b> extend recruitment effort — do not lower the screening bar, do not count casual chats as interviews, and do not move the thresholds. An incomplete sample is reported as incomplete (§6.3).</p>
+
+<h2>6. Day 7 scorecard methodology</h2>
+<h3>6.1 How every metric is calculated (tracker only)</h3>
+<p>All “Actual” values come from formulas — type nothing into the scorecard's Actual column. The table below is the audit trail: metric, where it lives, and how to read it.</p>
+<table>
+<tr><th>Metric</th><th>Tracker source</th><th>How it is calculated</th><th>Day 7 threshold (pre-set)</th></tr>
+<tr><td>Completed interviews</td><td>Metrics_Dashboard B8 ← Interview_Log Status = “Completed”</td><td>Count of completed rows only. A booked-but-not-held interview does not count; a casual chat does not count.</td><td>8</td></tr>
+<tr><td>Sellers with ≥1 unexplained difference in last 3 cycles</td><td>Metrics_Dashboard B13 ← Interview_Log col. L ≥ 1</td><td>Count. Blank L (not asked / unknown) is <b>not</b> counted as zero — it is excluded from the numerator and the share.</td><td>≥ 4</td></tr>
+<tr><td>Share with ≥1 unexplained difference</td><td>Metrics_Dashboard B14 ← B13 ÷ completed interviews</td><td>Share of completed interviews only.</td><td>≥ 50%</td></tr>
+<tr><td>Average monthly reconciliation minutes</td><td>Metrics_Dashboard B12 ← Interview_Log col. K (minutes per cycle × cycles per month), averaged</td><td>Mean of the formula column. Also report the range and the median in the report — a mean over 8 sellers hides the spread.</td><td>≥ 60</td></tr>
+<tr><td>Sellers willing to test (synthetic data)</td><td>Metrics_Dashboard B17 ← Interview_Log col. Q = “Yes”</td><td>Count of “Yes”. A booked test <i>date</i> (D12) is stronger; record dates separately in the report.</td><td>≥ 3</td></tr>
+<tr><td>Evidence items logged</td><td>Metrics_Dashboard B19 ← Evidence_Log rows</td><td>Count. Target ≈ 2 per interview. Support and contradict items are counted separately (B20/B21) — read both.</td><td>≥ 16</td></tr>
+<tr><td>Competitor / alternative rows with verification attempted</td><td>Scorecard_Day7 D12 ← Competitor_Log col. F = “Verified hands-on” or “Seller-reported”</td><td>Count. Vendor claims alone do not count.</td><td>≥ 2</td></tr>
+<tr><td>Courier distribution</td><td>Interview_Log col. H (couriers used, text) + col. G (count)</td><td>Manual tally in the report: how many sellers per courier; how many multi-courier. No formula — read the rows.</td><td>Mix: 3+ couriers (target, §1.1)</td></tr>
+<tr><td>Most frequent pain points / common alternatives / main adoption barriers</td><td>Evidence_Log (Topic + Finding) + Interview_Log col. P (current method)</td><td>Manual coding in the report: group evidence items by topic, count them, quote the strongest two per topic. Alternatives: count of “Spreadsheet” vs dashboard vs notebook vs none (Metrics B15/B16 help).</td><td>Qualitative — no threshold</td></tr>
+</table>
+<p class="small"><b>Note on the playbook's Day 7 gate vs the M13 brief:</b> the playbook's §6 Day 7 table uses slightly different operational thresholds (5+ interviews to Continue, 3+ with unexplained differences, median 30+ min/cycle, 2+ agreeing to a test with a date). The tracker's Scorecard_Day7 — which is what gets scored — uses the M13 targets above (8 / 4 / 50% / 60 min avg / 3 / 16 / 2). Both are pre-set and neither may be moved after fieldwork starts. If the two disagree on Day 7, report <b>both</b> readings in the decision note and say which one governed the decision. Do not silently pick the friendlier one.</p>
+
+<h3>6.2 Decision framework</h3>
+<table>
+<tr><th>Decision</th><th>What it means</th><th>Evidence required (all from the tracker)</th></tr>
+<tr><td><b>A. Continue validation</b></td><td>The problem signal is strong enough to continue toward Day 14 on the same hypothesis and segment.</td><td>No Stop signal from the playbook's §6 table (under 3 interviews despite full outreach; 0 with unexplained differences; all medians under 15 min; 0 test agreements) <b>and</b> at least two of the tracker's Continue cells met. In practice: 8 interviews done, ≥50% with an unexplained difference, and either the time or the willingness-to-test criterion also met.</td></tr>
+<tr><td><b>B. Adjust positioning</b></td><td>The problem exists, but the target segment, workflow or proposition needs refinement. (Includes the playbook's “Narrow the target market”: if the signal concentrates in one segment — e.g. only sellers over 500 shipments/month, or only multi-courier sellers — Days 8–14 are rewritten for that segment.)</td><td>A real signal exists but is concentrated or partial: e.g. differences exist but sellers resolve them inside the courier dashboard (then the hypothesis, not the effort, is wrong — revise the proposition); or the time cost is real only above a volume band; or willingness to test is there but only for a different workflow (e.g. batch totals, not shipment lines — assumption A11). Name the segment and the change.</td></tr>
+<tr><td><b>C. Reconsider the hypothesis</b></td><td>Interview evidence does not support the assumed problem strongly enough. (Includes the playbook's “Stop”: if a Stop signal fired, the honest decision is to stop this line and reconsider, not to push on.)</td><td>Weak or absent signal: few or no unexplained differences, median time under 15 minutes, no test agreements, or an existing tool demonstrably covering the segment (competitor gap refuted hands-on). The report must name the disconfirming evidence, not just the absence of confirming evidence.</td></tr>
+</table>
+<p><b>What “Continue” does and does not mean:</b> it justifies a next validation step (for example a concierge test with consented, redacted data). It does <b>not</b> authorise production development (M1), paid hosting, or collecting real merchant financial data. It does <b>not</b> claim product-market fit — eight interviews cannot do that, however positive they are.</p>
+
+<h3>6.3 Incomplete sample — the rule</h3>
+<p>If fewer than 8 interviews are completed by Day 7, the scorecard is scored anyway and the decision is recorded as <b>incomplete</b>: report the actual count beside every average and share (the tracker already does this — averages over 2–3 interviews are anecdotes, not market evidence), state which criteria could not be judged, and choose between B (extend recruitment into Days 8–14 and re-gate) and C (the outreach itself showed the segment is unreachable or uninterested, which is evidence). Never present a partial sample as if it were the full gate.</p>
+<p><b>Change log rule (tracker):</b> if any threshold was changed after interviews began, record the date, old value, new value and reason in the scorecard's Decision note. An unlogged change invalidates the gate.</p>
+
+<h2>7. Market-validation report template</h2>
+<p>The fillable template is the companion file <code>day7-report-template.md</code> (use it at Day 7, and again at Day 14 with the Day 14 scorecard). Its sections, in order: (1) what was done — days, contacts made, screened, eligible, booked, completed, with the funnel's real rates beside the assumed rates from §1.3; (2) interviews table — Interview IDs only (V-01…), date, channel, segment, volume band, couriers, minutes/cycle, unexplained differences in last 3 cycles, current method, willing to test (date or no); (3) metrics vs targets — the seven scorecard criteria with Actual, Met?, and the evidence note naming the interview/evidence IDs behind each; (4) evidence — anonymised quotes (seller codes only) and the strongest evidence for and against, separately; (5) what the evidence does and does not prove — including the sample-size limit and which segments were not reached; (6) decision (A / B / C) with reasoning, including the contradicting evidence weighed; (7) next steps for Days 8–14 (or the stop/reconsider plan). All fields are empty in the template. The one labelled example row in the playbook's tracker README is the only example anywhere; nothing else in the template is pre-filled.</p>
+
+<h2>Appendix — assumptions register (Day 7 only)</h2>
+<p>Every assumption in this pack, in one place, so the Day 7 report can check each against what actually happened.</p>
+<table>
+<tr><th>ID</th><th>Assumption</th><th>Where used</th><th>How Day 7 tests it</th></tr>
+<tr><td>D7-A1</td><td>50% of contacted sellers respond / get screened.</td><td>§1.3 funnel</td><td>Real response rate in the Day 7 report.</td></tr>
+<tr><td>D7-A2</td><td>50% of screened sellers are eligible.</td><td>§1.3 funnel</td><td>Real eligibility rate + disqualification reasons.</td></tr>
+<tr><td>D7-A3</td><td>65% of eligible sellers book; 80% of booked show up.</td><td>§1.3 funnel</td><td>Real booking and show rates.</td></tr>
+<tr><td>D7-A4</td><td>Two interviews per day is sustainable for one researcher including same-day coding.</td><td>§5</td><td>Whether Days 3–6 hit 2/day without coding slipping to the next day.</td></tr>
+<tr><td>D7-A5</td><td>Facebook groups, warm introductions and direct outreach together can produce 60 contacts in a week.</td><td>§1.2–1.3</td><td>Contacts actually made by channel.</td></tr>
+<tr><td>D7-A6</td><td>A 15–20 minute interview is enough to establish whether unexplained differences and time cost exist (the deeper fee/contract questions wait for Days 8–14).</td><td>§2</td><td>Whether D8/D9 answers were specific and recent, or vague.</td></tr>
+<tr><td>D7-A7</td><td>The M1 local build + P0 prototype can be demoed on Naim's screen without a public link.</td><td>§4</td><td>Demos actually held (Demo_Log).</td></tr>
+</table>
+<p><b>Dependencies remaining (for Naim):</b> (1) choose the outreach channels and start contacting sellers — nothing in this pack contacts anyone; (2) decide the incentive question (§1.5) before the first message; (3) set the Day 1 date — the seven days run from the day recruitment starts, and the tracker dates must match; (4) confirm the M1 app runs locally on the demo machine (start it once on Day 1, §5); (5) after Day 7, read the report and make the A/B/C decision — the gate does not decide itself. <b>First concrete action:</b> build the first-wave prospect list of 30 sellers (own network + warm introductions + direct contacts, channel noted for each) and send the first screening messages — Day 1, §5.</p>
+
+<div class="footer">
+<p>CourierLedger — Day 7 Market Validation Pack · Prepared 1 November 2026 · Sources: 14-day validation playbook (31 Oct 2026), evidence tracker (empty, formulas intact), M1 README + LOCAL_VERIFICATION.md, P0 prototype (read-only). No interviews, demos or results exist yet. All targets are pre-set; all funnel rates are labelled assumptions. M1 is not production-ready; no real merchant data was used or requested.</p>
+</div>
+
+</body>
+</html>
