@@ -118,6 +118,16 @@ cd m1/backend
 # tests/test_api_reconcile.py, app/domain/engine.py).
 ```
 
+### Skipped tests (Milestone 11 breakdown, 2026-11-01)
+
+Full suite without live credentials: **246 passed, 70 skipped** (316 collected; `pytest --collect-only` reconciles exactly). All 70 skips come from exactly two module-level `pytestmark = pytest.mark.skipif(...)` gates in the 11 `*_live_pg.py` modules — there is no other skip mechanism in the suite. **Group A — 65 tests, 10 files:** live-PostgreSQL gate on `CL_LIVE_PG_PASSWORD` only (scratch DB `courierledger_live_test`, Alembic, `rls.sql`/`triggers.sql`/`roles.sql`/`seed_couriers.sql`, uvicorn :8001). **Group B — 5 tests, `test_runtime_role_live_pg.py`:** stricter gate, also requires `CL_LIVE_PG_ROLE=courierledger_runtime`. Both groups are **intentional** (SQLite cannot exercise RLS, deferred triggers, idempotency leases, or the runtime role) and **should run in CI** — the workflow's live step sets both variables, so the expected CI signal there is 0 skips, 316 run. Run them locally with:
+
+```bash
+CL_LIVE_PG_PASSWORD='<password>' CL_LIVE_PG_ROLE=courierledger_runtime \
+  .venv/bin/python -m pytest tests/ -q
+# 316 passed, 0 failed (2026-11-01, runtime role)
+```
+
 The M0/M1 tests use a temporary SQLite file (`/tmp/cl_m1_test.db`,
 set in `tests/conftest.py` before the app is imported). This is a
 **test-only fallback**, not the app data model. Two SQLite-only
