@@ -117,11 +117,12 @@ GRANT SELECT, INSERT, UPDATE ON public.password_reset_tokens TO courierledger_ma
 
 -- ---------------------------------------------------------------------------
 -- Tenant tables -- runtime grants.
--- Mutable tables: SELECT, INSERT, UPDATE, DELETE (DELETE only where the
--- design allows routine deletion: effectively none of the financial
--- tables -- DELETE is granted here only on merchant_memberships, where
--- revocation may remove a membership row, and is otherwise withheld;
--- see the per-table grants below).
+-- Mutable tables: SELECT, INSERT, UPDATE only -- DELETE is granted
+-- to the runtime role on NONE of the tenant tables. In particular
+-- there is NO DELETE grant on merchant_memberships (an earlier
+-- version of this comment claimed otherwise): revocation removes no
+-- row, it is an UPDATE to status='revoked', and the
+-- merchant_memberships policies carry no DELETE policy either.
 -- Append-only tables: SELECT + INSERT only. No UPDATE, no DELETE.
 -- ---------------------------------------------------------------------------
 
@@ -201,7 +202,11 @@ GRANT UPDATE ON public.orders TO courierledger_maintenance;
 -- because RLS policies call it on every tenant query. The same holds
 -- for public.app_current_user_id() (B-1 fix: the membership-based
 -- merchants SELECT policy and the merchant_memberships SELECT policy
--- call it). EXECUTE on public.create_workspace() is granted in rls.sql
+-- call it). The same in-file grant pattern holds for
+-- public.app_current_user_role() (Phase 1.1, B-F7 fix): REVOKE FROM
+-- PUBLIC plus GRANT TO courierledger_runtime / maintenance live in
+-- rls.sql next to its definition, not here, so the grant travels
+-- with the function. EXECUTE on public.create_workspace() is granted in rls.sql
 -- next to the function definition (runtime role only, PUBLIC revoked);
 -- it is not repeated here, so the grant travels with the function.
 -- ---------------------------------------------------------------------------

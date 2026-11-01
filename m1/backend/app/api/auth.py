@@ -18,7 +18,7 @@ from app.db.auth_models import User
 from app.db.session import get_db
 from app.logging_config import get_logger
 from app.security import generate_csrf_token
-from app.services import auth_service, rate_limit
+from app.services import audit_service, auth_service, rate_limit
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -54,6 +54,12 @@ class PasswordResetConfirm(BaseModel):
     new_password: str = Field(min_length=12, max_length=128)
 
 
+class StepUpRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(max_length=128)
+
+
 class UserOut(BaseModel):
     id: str
     email: str
@@ -84,6 +90,10 @@ def _set_session_cookie(response: Response, raw_token: str) -> None:
 
 def _clear_session_cookie(response: Response) -> None:
     response.delete_cookie(key=settings.session_cookie_name, path="/")
+
+
+def _clear_csrf_cookie(response: Response) -> None:
+    response.delete_cookie(key=settings.csrf_cookie_name, path="/")
 
 
 def _set_csrf_cookie(response: Response, token: str) -> None:
@@ -170,12 +180,31 @@ def login(
         user = auth_service.authenticate(db, email, body.password)
     except auth_service.AuthError:
         rate_limit.record_failure(client_ip, email)
+        # Phase 1.1 (B-F10): failed logins are audited with actor
+        # None and NO email -- the detail carries only the reason.
+        audit_service.record_audit(
+            db,
+            actor=None,
+            merchant_id=None,
+            action=audit_service.AUTH_LOGIN_FAILED,
+            detail={"reason": "invalid_credentials"},
+        )
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password."
         )
     rate_limit.record_success(client_ip, email)
     device_label = request.headers.get("User-Agent", "")[:200] or None
     raw_token = auth_service.create_session(db, user, device_label=device_label)
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=None,
+        action=audit_service.AUTH_LOGIN_SUCCESS,
+        entity_table="users",
+        entity_id=user.id,
+    )
+    db.commit()
     _set_session_cookie(response, raw_token)
     # Phase 1 (B-F13/C-6.3): rotate the CSRF token on login so a token
     # issued to an unauthenticated caller does not survive sign-in.
@@ -190,9 +219,24 @@ def logout(
     db: Session = Depends(get_db),
 ) -> dict:
     raw_token = request.cookies.get(settings.session_cookie_name)
+    user = auth_service.get_user_by_session_token(db, raw_token) if raw_token else None
     if raw_token:
         auth_service.revoke_session(db, raw_token)
+    if user is not None:
+        audit_service.record_audit(
+            db,
+            actor=user,
+            merchant_id=None,
+            action=audit_service.AUTH_LOGOUT,
+            entity_table="users",
+            entity_id=user.id,
+        )
+        db.commit()
     _clear_session_cookie(response)
+    # Phase 1.1: also clear the CSRF cookie -- the 7-day CSRF token
+    # otherwise survives logout (it cannot authenticate on its own,
+    # but there is no reason to keep a post-logout token around).
+    _clear_csrf_cookie(response)
     return {"detail": "Logged out."}
 
 
@@ -202,9 +246,61 @@ def revoke_all(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    auth_service.revoke_all_sessions(db, user)
+    revoked = auth_service.revoke_all_sessions(db, user)
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=None,
+        action=audit_service.AUTH_REVOKE_ALL,
+        entity_table="users",
+        entity_id=user.id,
+        detail={"revoked_sessions": revoked},
+    )
+    db.commit()
     _clear_session_cookie(response)
     return {"detail": "All sessions revoked."}
+
+
+@router.post("/step-up", dependencies=[Depends(require_csrf)])
+def step_up(
+    body: StepUpRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Re-verify the authenticated user's password so a highest-
+    impact action (owner transfer) can proceed. Returns 200 when the
+    password checks out; a generic 401 otherwise (same wording as
+    login, so no oracle). Step-up stays valid for
+    ``step_up_ttl_seconds`` (10 minutes); a session created within
+    ``step_up_fresh_login_seconds`` (15 minutes) already counts as
+    step-up-verified, so the normal login -> transfer flow needs no
+    extra prompt. The frontend step-up prompt is a follow-up -- no UI
+    change in 1.1. Failed attempts count against the same login
+    rate-limit buckets (per IP+email and per account); a step-up
+    success does NOT clear the login buckets (it is not a login)."""
+    client_ip = _client_ip(request)
+    if rate_limit.is_blocked(client_ip, user.email):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts. Try again later.",
+        )
+    raw_token = request.cookies.get(settings.session_cookie_name)
+    if not raw_token or not auth_service.verify_step_up(db, user, body.password, raw_token):
+        rate_limit.record_failure(client_ip, user.email)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password."
+        )
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=None,
+        action=audit_service.AUTH_STEP_UP_VERIFIED,
+        entity_table="users",
+        entity_id=user.id,
+    )
+    db.commit()
+    return {"detail": "Step-up verified."}
 
 
 @router.get("/me")
@@ -241,7 +337,32 @@ def password_reset_request(
 
 
 @router.post("/password-reset/confirm", dependencies=[Depends(require_csrf)])
-def password_reset_confirm(body: PasswordResetConfirm, db: Session = Depends(get_db)) -> dict:
+def password_reset_confirm(
+    body: PasswordResetConfirm, request: Request, db: Session = Depends(get_db)
+) -> dict:
+    # Phase 1.1: rate-limit confirm attempts per IP (50/hour -- the
+    # same headroom as register, so the live suite's many confirms
+    # from 127.0.0.1 are not blocked). The token is 256-bit, so this
+    # is a backstop against online guessing loops, not the primary
+    # defence. The generic bucket pattern from rate_limit.py is used
+    # (every attempt is recorded, before the token is checked).
+    client_ip = _client_ip(request)
+    if rate_limit.is_limited(
+        "reset-confirm",
+        client_ip,
+        settings.reset_confirm_max_attempts,
+        settings.reset_confirm_window_seconds,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many password-reset attempts. Try again later.",
+        )
+    rate_limit.record_attempt(
+        "reset-confirm",
+        client_ip,
+        settings.reset_confirm_max_attempts,
+        settings.reset_confirm_window_seconds,
+    )
     try:
         auth_service.confirm_password_reset(db, body.token, body.new_password)
     except auth_service.AuthError as exc:

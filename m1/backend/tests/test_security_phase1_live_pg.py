@@ -10,11 +10,13 @@ Proves, live:
   under the runtime role (UPDATE revoked_at — the role has no
   DELETE grant, so the old DELETE implementation 500'd).
 - B-F3 viewer POSTs are 403 live (at least the matrix spot-checks).
-- B-F7 direct-SQL self-promotion probe: RLS is tenant-scoped, not
-  role-scoped — a member CAN promote themselves via direct SQL.
-  This is the documented residual (not fixed in Phase 1); the HTTP
-  layer is the only role enforcement. The probe pins the behaviour
-  so a future RLS change is noticed.
+- B-F7 direct-SQL self-promotion probe: FIXED in Phase 1.1. RLS
+  policies on merchant_memberships are now role-scoped (only an
+  active owner/admin may manage memberships; only an owner may set
+  role='owner'), backstopped by the fn_membership_role_guard
+  trigger, so a viewer/member can no longer promote themselves via
+  direct SQL. The probe now asserts the block (rowcount 0, role
+  unchanged) instead of pinning the residual.
 - B-F12 create_workspace() rejects a p_user_id that is not the
   authenticated user; the API path still works.
 - B-F17 PUBLIC can no longer EXECUTE app_current_*; the runtime
@@ -525,14 +527,19 @@ def test_public_cannot_execute_context_helpers_live(live):
                 assert cur.fetchone()[0] is True, fn
 
 
-def test_direct_sql_self_promotion_not_blocked_by_rls_residual_b_f7(live):
-    """B-F7 residual probe (NOT fixed in Phase 1): RLS policies are
-    tenant-scoped, not role-scoped, so a member who can run SQL as
-    the runtime role can promote their own membership within their
-    own workspace. The HTTP layer (member_service, owner/admin-only)
-    is the only role enforcement. This test pins the behaviour so a
-    future role-scoped RLS change is noticed — it documents the
-    residual, it does not endorse it."""
+def test_direct_sql_self_promotion_blocked_by_rls_b_f7(live):
+    """B-F7 FIXED in Phase 1.1 (this test pinned the residual in
+    Phase 1 and is rewritten here -- not weakened: the old version
+    asserted that a viewer COULD self-promote via direct SQL, which
+    is exactly what the fix removes). RLS policies on
+    merchant_memberships are now role-scoped
+    (app_current_user_role()), and the fn_membership_role_guard
+    trigger backstops the self-accept arm, so a viewer who can run
+    SQL as the runtime role can no longer promote their own
+    membership: the direct-SQL UPDATE affects zero rows (USING
+    fails silently) and the role stays 'viewer'. The HTTP layer
+    still refuses a viewer-initiated role change (403), and an
+    owner can still change roles via direct SQL."""
     owner = authed_client(live["base_url"], "sec-live-f7-o@example.com", PASSWORD)
     member = authed_client(live["base_url"], "sec-live-f7-m@example.com", PASSWORD)
     try:
@@ -541,8 +548,13 @@ def test_direct_sql_self_promotion_not_blocked_by_rls_residual_b_f7(live):
         ws = resp.json()["id"]
         mid = _invite_accept(owner, ws, member, "sec-live-f7-m@example.com", "viewer")
         uid_m = _user_id(member)
+        uid_o = _user_id(owner)
         with _runtime_conn() as conn:
             with conn.cursor() as cur:
+                # Viewer direct-SQL self-promotion is blocked: the
+                # row is not visible to the UPDATE (rowcount 0, no
+                # error), and the role is unchanged. (Verified by
+                # hand first in a scratch DB before this rewrite.)
                 cur.execute(
                     "SELECT set_config('app.current_merchant_id', %s, true), "
                     "set_config('app.user_id', %s, true)",
@@ -553,14 +565,30 @@ def test_direct_sql_self_promotion_not_blocked_by_rls_residual_b_f7(live):
                     "WHERE id = %s",
                     (mid,),
                 )
+                assert cur.rowcount == 0
+                cur.execute("SELECT role FROM merchant_memberships WHERE id = %s", (mid,))
+                assert cur.fetchone()[0] == "viewer"
+                # An owner direct-SQL role change still works, and
+                # the fixture state is restored the same way.
+                cur.execute(
+                    "SELECT set_config('app.current_merchant_id', %s, true), "
+                    "set_config('app.user_id', %s, true)",
+                    (ws, uid_o),
+                )
+                cur.execute(
+                    "UPDATE merchant_memberships SET role = 'admin' WHERE id = %s",
+                    (mid,),
+                )
                 assert cur.rowcount == 1
                 cur.execute("SELECT role FROM merchant_memberships WHERE id = %s", (mid,))
-                assert cur.fetchone()[0] == "owner"
-                # Restore the fixture state.
+                assert cur.fetchone()[0] == "admin"
                 cur.execute(
                     "UPDATE merchant_memberships SET role = 'viewer' WHERE id = %s",
                     (mid,),
                 )
+                assert cur.rowcount == 1
+                cur.execute("SELECT role FROM merchant_memberships WHERE id = %s", (mid,))
+                assert cur.fetchone()[0] == "viewer"
             conn.commit()
         # The HTTP layer still refuses a viewer-initiated role change.
         resp = member.patch(

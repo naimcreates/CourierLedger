@@ -89,7 +89,7 @@ from app.db.models import (
     SettlementVarianceCalculationInput,
 )
 from app.db.session import set_tenant_context
-from app.services import settlement_variance
+from app.services import audit_service, settlement_variance
 from app.services.workspace_service import get_membership
 
 
@@ -381,6 +381,15 @@ def create_batch(
     db.add(batch)
     db.flush()
     out = _batch_dict(batch, current_variance=None)
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=merchant_id,
+        action=audit_service.SETTLEMENTS_BATCH_CREATED,
+        entity_table="settlement_batches",
+        entity_id=batch.id,
+        detail={"merchant_courier_account_id": str(account_id)},
+    )
     _commit_or_422(db, reason="batch_create_failed")
     return out
 
@@ -480,6 +489,15 @@ def create_receipt(
     _recompute_batch(db, batch)
     db.flush()
     out = _receipt_dict(receipt)
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=merchant_id,
+        action=audit_service.SETTLEMENTS_RECEIPT_CREATED,
+        entity_table="bank_receipts",
+        entity_id=receipt.id,
+        detail={"settlement_batch_id": str(batch.id), "amount_poisha": amount_poisha},
+    )
     _commit_or_422(db, reason="receipt_create_failed")
     return out
 
@@ -511,6 +529,15 @@ def complete_receipt(db: Session, *, user, merchant_id, batch_id, receipt_id) ->
     _recompute_batch(db, batch)
     db.flush()
     out = _receipt_dict(receipt)
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=merchant_id,
+        action=audit_service.SETTLEMENTS_RECEIPT_COMPLETED,
+        entity_table="bank_receipts",
+        entity_id=receipt.id,
+        detail={"settlement_batch_id": str(batch.id)},
+    )
     _commit_or_422(db, reason="receipt_complete_failed")
     return out
 
@@ -594,6 +621,19 @@ def create_allocation(
     _recompute_batch(db, batch)
     db.flush()
     out = _allocation_dict(allocation)
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=merchant_id,
+        action=audit_service.SETTLEMENTS_ALLOCATED,
+        entity_table="settlement_allocations",
+        entity_id=allocation.id,
+        detail={
+            "settlement_batch_id": str(batch.id),
+            "bank_receipt_id": str(receipt.id),
+            "allocated_poisha": allocated_poisha,
+        },
+    )
     _commit_or_422(db, reason="over_allocation")
     return out
 
@@ -652,6 +692,19 @@ def reverse_allocation(db: Session, *, user, merchant_id, batch_id, allocation_i
     _recompute_batch(db, batch)
     db.flush()
     out = _allocation_dict(reversal)
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=merchant_id,
+        action=audit_service.SETTLEMENTS_REVERSED,
+        entity_table="settlement_allocations",
+        entity_id=reversal.id,
+        detail={
+            "settlement_batch_id": str(batch.id),
+            "reverses_allocation_id": str(original.id),
+            "allocated_poisha": original.allocated_poisha,
+        },
+    )
     _commit_or_422(db, reason="reversal_failed")
     return out
 
@@ -743,6 +796,19 @@ def calculate_variance(db: Session, *, user, merchant_id, batch_id) -> dict:
         "allocated_bank_confirmed_total_poisha": net,
         "bank_variance_poisha": net - batch.expected_batch_payout_poisha,
     }
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=merchant_id,
+        action=audit_service.SETTLEMENTS_VARIANCE_CALCULATED,
+        entity_table="settlement_variance_calculations",
+        entity_id=calc.id,
+        detail={
+            "settlement_batch_id": str(batch.id),
+            "calculation_seq": seq,
+            "bank_variance_poisha": net - batch.expected_batch_payout_poisha,
+        },
+    )
     _commit_or_422(db, reason="variance_validation_failed")
     return out
 

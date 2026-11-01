@@ -88,7 +88,7 @@ from app.db.models import (
 )
 from app.db.session import set_tenant_context
 from app.logging_config import get_logger
-from app.services import idempotency_service
+from app.services import audit_service, idempotency_service
 from app.services.workspace_service import get_membership
 
 logger = get_logger(__name__)
@@ -500,6 +500,15 @@ def run_import(
         _add_error(db, None, "VALUE_UNPARSABLE", "error",
                    "File could not be parsed as CSV.", batch=batch)
         _finish_batch(db, batch, key_row, key, merchant_id, failed=True)
+        audit_service.record_audit(
+            db,
+            actor=user,
+            merchant_id=merchant_id,
+            action=audit_service.IMPORTS_UPLOADED,
+            entity_table="import_batches",
+            entity_id=batch.id,
+            detail={"status": "parse_failed", "row_count": 0},
+        )
         db.commit()
         return _batch_summary(db, batch, outcome="claimed")
 
@@ -646,6 +655,22 @@ def run_import(
     batch.error_row_count = error_row_count
     batch.status = "ready" if error_row_count == 0 else "parsed"
     _finish_batch(db, batch, key_row, key, merchant_id, failed=False)
+    # An idempotency replay returns above without creating a batch,
+    # so it writes no audit row: the event audited here is THIS upload.
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=merchant_id,
+        action=audit_service.IMPORTS_UPLOADED,
+        entity_table="import_batches",
+        entity_id=batch.id,
+        detail={
+            "status": batch.status,
+            "row_count": row_count,
+            "parsed_row_count": parsed_count,
+            "error_row_count": error_row_count,
+        },
+    )
     db.commit()
     logger.info("csv_import_completed", extra={
         "batch_id": str(batch.id), "merchant_id": str(merchant_id),

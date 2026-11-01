@@ -42,6 +42,11 @@ Medium 8, Low 8 (20 findings). Stream C — Critical 1, High 5, Medium 11, Low 1
 in this phase and what remains. This audit file records the findings as found; it is not
 updated to "fixed" — the remediation file is the status record.
 
+**Remediation status (Phase 1.1, 2026-11-01):** B-F7, B-F10, B-F11, B-F15 and B-F19
+were closed in Phase 1.1 (see the "Verification status" line under each finding, and
+`SECURITY_DECISIONS.md` for the decision record). The findings themselves are recorded
+as found; only the status lines were updated.
+
 ---
 
 ## Critical
@@ -285,6 +290,20 @@ updated to "fixed" — the remediation file is the status record.
   behaviour (`tests/test_security_phase1_live_pg.py::test_direct_sql_self_promotion_not_blocked_by_rls_residual_b_f7`):
   the self-promotion UPDATE succeeds at the SQL layer, while the HTTP layer still refuses
   it (403).
+- **Phase 1.1 (2026-11-01) — FIXED.** `merchant_memberships` INSERT/UPDATE are now
+  role-scoped: only an active owner/admin may insert or manage a membership, only an
+  owner may set `role='owner'`, the sole exception is self-acceptance of an invited row,
+  backstopped by the `fn_membership_role_guard` trigger (which also closes the
+  NEW-vs-OLD role-smuggling hole a policy cannot express) and a transaction-start role
+  snapshot so `transfer_owner` is not broken by flush order. New helpers
+  `app_current_user_role()` / `app_current_user_role_effective()` in `rls.sql`. The
+  probe test was rewritten to assert blocking
+  (`test_direct_sql_self_promotion_blocked_by_rls_b_f7`) and 11 new live tests in
+  `tests/test_rls_roles_live_pg.py` prove cross-tenant AND cross-role restrictions
+  under the runtime role. Financial-table role-scoping was evaluated and DEFERRED
+  (fixture sweep needed first) — see `SECURITY_DECISIONS.md` D-3. Residual: an admin
+  can still demote an owner to admin via direct SQL (app blocks it with 422); the DB
+  layer only blocks the subsequent owner-grant.
 
 ### B-F8 — MEDIUM — Most live tests run as owner role
 - **Component:** `m1/backend/tests/live_pg.py` and the live test files.
@@ -314,12 +333,32 @@ updated to "fixed" — the remediation file is the status record.
 - **Evidence:** the table and grants exist; no service inserts audit rows.
 - **Impact:** no audit trail for security-relevant actions.
 - **Remediation:** Phase 2 feature — NOT done in Phase 1.
+- **Phase 1.1 (2026-11-01) — FIXED.** Single writer
+  `m1/backend/app/services/audit_service.py` (`record_audit`, closed 23-action
+  vocabulary, never commits — the audit row shares the mutation's transaction);
+  call sites in auth, members, imports, runs, settlements and settings. No
+  schema change (the table already existed). Append-only enforcement and
+  tenant isolation live-verified under the runtime role (UPDATE/DELETE raise
+  `InsufficientPrivilege`; A's rows invisible under B's context). Detail never
+  contains passwords, tokens, bank account numbers, raw file contents or
+  email addresses. See `SECURITY_DECISIONS.md` D-7, including the
+  INSERT … RETURNING trap found live and fixed app-side (explicit
+  `created_at`).
 
 ### B-F11 — MEDIUM — No session caps / renewal / step-up
 - **Component:** `m1/backend/app/services/auth_service.py`, `m1/backend/app/config.py`.
 - **Evidence:** sessions last 7 days with no renewal, no per-user session cap, no step-up
   authentication for sensitive actions.
 - **Remediation:** Phase 2 feature — NOT done in Phase 1.
+- **Phase 1.1 (2026-11-01) — FIXED in part.** 10-session cap per user
+  (evict-oldest on login); step-up authentication for owner transfer
+  (`POST /api/auth/step-up`, 10-minute verification, 15-minute fresh-login
+  window, Alembic 0005 adds `step_up_expires_at` to `user_sessions`);
+  logout also clears the CSRF cookie; password-reset confirm rate-limited
+  (50/hour/IP) and restructured to a single commit (password + `used_at` +
+  session revocation). Deliberately NOT done, with reasons in
+  `SECURITY_DECISIONS.md` D-5: no sliding refresh, no rotation on login,
+  no 24-hour lifetime, no Redis. See D-5/D-6 for the full lifecycle rules.
 
 ### B-F15 — MEDIUM (residual) — Revoked member's session stays valid (documented design)
 - **Component:** `m1/backend/app/services/auth_service.py`, `m1/backend/app/api/deps.py`.
@@ -327,6 +366,15 @@ updated to "fixed" — the remediation file is the status record.
   checks `revoked_at` only, not membership status.
 - **Remediation:** documented design, NOT changed in Phase 1. A revoked member keeps their
   session but every workspace-scoped call re-checks membership and returns 404.
+- **Phase 1.1 (2026-11-01) — FIXED as designed.** The base layer is unchanged
+  (fresh membership recheck → 404 on every workspace call). New: when the
+  revoked user holds NO other active membership, `revoke_member` also revokes
+  ALL of their sessions (single-workspace users are logged out entirely);
+  multi-workspace users keep their session for their other workspaces. New
+  manager-only `POST /api/workspaces/{id}/members/{user_id}/revoke-sessions`
+  ("force logout", for cause, CL-20 locked, audit-logged). OD-11 preserved.
+  Live-verified in `tests/test_security_phase11_live_pg.py` (single- and
+  multi-workspace revoke, force-revoke). See `SECURITY_DECISIONS.md` D-4.
 
 ### C-1.5 — MEDIUM — Money fields are not uniformly StrictInt; no upper bound anywhere
 - **Component:** `m1/backend/app/api/settlements.py:50-73`, `runs.py:44-50`, `reconcile.py:35`.
@@ -610,6 +658,14 @@ updated to "fixed" — the remediation file is the status record.
 - **Component:** `m1/backend/app/services/auth_service.py`, `m1/backend/app/db/models.py`.
 - **Evidence:** no scheduled cleanup of expired `user_sessions` / `password_reset_tokens` rows.
 - **Remediation:** maintenance procedure for Phase 2 — NOT done in Phase 1.
+- **Phase 1.1 (2026-11-01) — procedure exists, invocation pending.**
+  `auth_service.purge_expired_auth_rows(db)` DELETEs expired `user_sessions`
+  and expired-or-used `password_reset_tokens` in one commit and returns the
+  counts. It is a procedure, not an endpoint: it must run with an
+  owner/migrator connection during a maintenance window (the runtime role
+  has no DELETE grant). No scheduler or invocation exists yet — a
+  deployment/operations decision. Covered by a SQLite test (expired rows
+  deleted, live/revoked-unexpired rows kept).
 
 ### B-F20 — LOW — Stale comments
 - **Component:** `m1/backend/app/services/member_service.py`, `m1/backend/app/logging_config.py`,

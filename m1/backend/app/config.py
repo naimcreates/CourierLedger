@@ -41,6 +41,16 @@ class Settings(BaseSettings):
     session_cookie_secure: bool = False  # True behind HTTPS in production
     session_cookie_samesite: str = "lax"
 
+    # Phase 1.1 (B-F11): session lifecycle hardening.
+    # Maximum concurrent live sessions per user; on login past the cap
+    # the oldest sessions are revoked (evict-oldest, not reject).
+    session_max_concurrent: int = 10
+    # Step-up verification (POST /api/auth/step-up) stays valid this long.
+    step_up_ttl_seconds: int = 10 * 60  # 10 minutes
+    # A session created within this window counts as freshly
+    # authenticated for step-up purposes (no extra password prompt).
+    step_up_fresh_login_seconds: int = 15 * 60  # 15 minutes
+
     csrf_cookie_name: str = "cl_csrf"
     csrf_header_name: str = "X-CSRF-Token"
 
@@ -75,6 +85,13 @@ class Settings(BaseSettings):
 
     # Password-reset token lifetime.
     password_reset_ttl_seconds: int = 60 * 60  # 1 hour
+
+    # Phase 1.1: password-reset confirm attempts, per IP. The token is
+    # 256-bit, so this is a backstop against online guessing loops, not
+    # the primary defence; 50/hour matches the register bucket so the
+    # live test suite (many confirms from 127.0.0.1) is not blocked.
+    reset_confirm_max_attempts: int = 50
+    reset_confirm_window_seconds: int = 60 * 60  # 1 hour
 
 
 settings = Settings()

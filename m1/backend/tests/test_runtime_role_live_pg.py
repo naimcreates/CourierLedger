@@ -186,4 +186,8 @@ def test_alembic_uses_migration_database_url(live):
         timeout=120,
     )
     assert proc.returncode == 0, proc.stderr
-    assert "0004 (head)" in proc.stdout, proc.stdout
+    # Phase 1.1: the head revision is 0005 (step-up support), not
+    # 0004 -- this assertion names the current head, and must move
+    # with the next migration. The behaviour under test (Alembic
+    # reads MIGRATION_DATABASE_URL, not DATABASE_URL) is unchanged.
+    assert "0005 (head)" in proc.stdout, proc.stdout

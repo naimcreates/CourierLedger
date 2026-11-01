@@ -370,22 +370,170 @@ findings + 5 positives). Fix numbers below are the task's fix numbers (1–30).
 
 ---
 
+## What was fixed in Phase 1.1 (2026-11-01)
+
+Phase 1.1 of production-readiness: **security closure & authorization hardening**.
+Scope: role-scoped RLS (B-F7), revoked-member session security (B-F15), session
+lifecycle hardening (B-F11, incl. the B-F19 cleanup procedure), immutable audit trail
+(B-F10). No rebuild, no V2.2.1 financial-logic change, no microservices, no Redis,
+no deploy. Fix numbers continue from Phase 1 (31–38). Decision record:
+`SECURITY_DECISIONS.md`.
+
+### Fix 31 — B-F7 (Medium): role-scoped RLS on `merchant_memberships`
+- **Change:** `m1/backend/app/db/rls.sql` — new helpers `app_current_user_role()`
+  and `app_current_user_role_effective()` (LANGUAGE sql, STABLE, hardened
+  search_path, never raise; PUBLIC EXECUTE revoked, runtime + maintenance
+  granted). `merchant_memberships` INSERT requires an active owner/admin;
+  UPDATE is one combined policy (manager arm: active owner/admin, only an
+  owner may set `role='owner'`; self-accept arm: the invited user on their
+  own invited row → active). `triggers.sql` §10 adds `fn_membership_role_guard`
+  / `trg_membership_role_guard` (BEFORE UPDATE, plain/invoker-rights — a
+  documented CL-22 rule-1 exception) closing the role-smuggling hole a policy
+  WITH CHECK cannot express, plus a transaction-start role snapshot
+  (`app.membership_role_snapshot`) so the `transfer_owner` two-row swap is not
+  rejected by flush order. `roles.sql` comment-only fix (stale DELETE-grant
+  claim). `create_workspace()` unaffected (SECURITY DEFINER + NO FORCE).
+- **Proving tests:** new `tests/test_rls_roles_live_pg.py` (11 live tests,
+  runtime role — helper values, cross-tenant UPDATE/INSERT blocked, viewer/
+  member INSERT rejected, self-promote blocked, admin owner-grant raises,
+  transfer-style swaps both orders, demotion-first swap with a second owner,
+  snapshot-manufacture refused, invited smuggle raises / accept works, HTTP
+  accept end-to-end, admin revoke + reactivate). The Phase 1 probe test was
+  rewritten to assert blocking
+  (`test_direct_sql_self_promotion_blocked_by_rls_b_f7`).
+- **Deferred with evidence:** financial-table role-scoping (8 mutable FOR ALL
+  policies) — the owner-role seed fixtures in 6 live test files set merchant
+  context only, so a role requirement would return NULL and block every seeded
+  write; needs a fixture sweep first (see `SECURITY_DECISIONS.md` D-3).
+  **Residual:** an admin can still demote an owner to admin via direct SQL
+  (app blocks it with 422); the DB layer only blocks the owner-grant.
+
+### Fix 32 — B-F15 (Medium): revoked-member session security
+- **Change:** `m1/backend/app/services/member_service.py` — base layer unchanged
+  (fresh membership recheck → 404 on every workspace call). New: when the
+  revoked user holds NO other active membership, `revoke_member` also revokes
+  ALL of their sessions (`revoke_all_sessions`, second separate commit so a
+  failure cannot roll back the revocation; the other-membership count runs
+  under the TARGET's user context because the actor's context cannot see the
+  target's other-workspace rows). New manager-only endpoint
+  `POST /api/workspaces/{id}/members/{user_id}/revoke-sessions`
+  (`member_service.force_revoke_sessions`, CL-20 locked, audit-logged) — force
+  logout for cause, regardless of other memberships; the target must hold (or
+  have held) a membership row in this workspace. OD-11 preserved.
+- **Proving tests:** `tests/test_security_phase11.py` (SQLite) + 
+  `tests/test_security_phase11_live_pg.py` (live, runtime role): revoke
+  single-workspace → 401 everywhere incl. `/auth/me`; revoke multi-workspace
+  → session survives for the other workspace, revoked one 404s; force-revoke
+  manager-only, target's sessions 401, others unaffected. Two pre-existing
+  tests updated for the deliberate behaviour change (revoke now 401s a
+  single-workspace member's session; they re-log-in to continue):
+  `tests/test_members.py::test_revoke_denies_workspace_immediately_and_reinvite_works`,
+  `tests/test_members_live_pg.py::test_revoke_denies_live_session_live`.
+
+### Fix 33 — B-F11 (Medium): session cap (10, evict-oldest)
+- **Change:** `m1/backend/app/services/auth_service.py::create_session` —
+  counts live sessions in Python (dialect-safe); when count ≥
+  `session_max_concurrent` (10, `app/config.py`), revokes the oldest down to
+  cap − 1, then inserts; evictions and insert share one commit.
+- **Proving tests:** `tests/test_security_phase11.py`: 11th login evicts the
+  oldest (old token 401, new works, exactly 10 live); live cap test (11 HTTP
+  logins, oldest revoked, 10 live / 1 revoked in SQL).
+
+### Fix 34 — B-F11 (Medium): step-up authentication for owner transfer
+- **Change:** Alembic 0005 (`0005_phase11_session_step_up.py`) adds
+  `step_up_expires_at` (nullable timestamptz) to `user_sessions`;
+  `app/db/auth_models.py` model field; `app/config.py`
+  (`step_up_ttl_seconds` = 600, `step_up_fresh_login_seconds` = 900).
+  `auth_service.verify_step_up(db, user, password, raw_token)` (password
+  re-check, stamps the session row, False never raises) and
+  `get_session_by_token`. `deps.require_step_up` — satisfied by a live
+  step-up verification OR a session created within 900s, else 403. New
+  `POST /api/auth/step-up` (auth + CSRF; generic 401 on failure, failures
+  count against the existing login buckets, successes do not clear them).
+  Applied to the transfer-owner endpoint only. No frontend step-up prompt
+  was built (follow-up); the 15-minute fresh-login window keeps the normal
+  login → transfer flow working.
+- **Proving tests:** `tests/test_security_phase11.py` (aged session → 403,
+  wrong password → 401 then still 403, correct → 200, transfer works;
+  expired verification → 403, re-verify → 200) and the live file (fresh
+  works, 16-minute-old session → 403 via direct-SQL ageing, wrong step-up
+  401, correct step-up → transfer works, last-owner revoke still 422).
+
+### Fix 35 — B-F11 (Medium): logout clears the CSRF cookie; reset-confirm rate limit + single commit
+- **Change:** logout now clears the CSRF cookie as well as the session cookie.
+  Password-reset confirm is rate-limited per IP (50/hour via the existing
+  generic bucket, `reset_confirm_max_attempts` / `reset_confirm_window_seconds`)
+  and restructured to a single commit (password change + `used_at` + session
+  revocation share one `db.commit()` — Phase 1 left a two-commit window).
+- **Proving tests:** `tests/test_security_phase11.py`: reset-confirm single
+  commit (both prior sessions 401, token consumed, new password works);
+  reset-confirm rate limit (50× 400 then 429); logout clears CSRF cookie
+  (Max-Age=0 on both cookies).
+
+### Fix 36 — B-F19 (Low): expired session/token cleanup procedure
+- **Change:** `auth_service.purge_expired_auth_rows(db)` — DELETEs expired
+  `user_sessions` (revoked or not) and expired-or-used `password_reset_tokens`,
+  one commit, returns `{"sessions": n, "reset_tokens": m}`. Procedure, not an
+  endpoint: it must run with an owner/migrator connection during a maintenance
+  window (runtime role has no DELETE grant). No scheduler/invocation exists yet.
+- **Proving tests:** `tests/test_security_phase11.py`: expired session +
+  expired/used tokens deleted, live/revoked-unexpired rows kept.
+
+### Fix 37 — B-F10 (Medium): immutable audit trail
+- **Change:** new `m1/backend/app/services/audit_service.py` — single writer
+  `record_audit(db, *, actor, merchant_id, action, entity_table, entity_id,
+  detail, actor_type="user")`, closed 23-action vocabulary (unknown action
+  raises `ValueError`), never commits (the audit row shares the mutation's
+  transaction), actor/merchant only from server-side arguments, detail
+  restricted to ids/statuses/counts/poisha amounts (never passwords, tokens,
+  bank account numbers, raw file contents, or email addresses). Call sites in
+  auth, members, imports, runs, settlements, settings. No schema change (the
+  `audit_logs` table already existed). **INSERT … RETURNING trap found live:**
+  the ORM's `INSERT ... RETURNING created_at` also applies the table's SELECT
+  policy, which a NULL-merchant identity row can never pass — fixed app-side
+  by setting `created_at` explicitly (app clock, UTC); verified with a minimal
+  reproduction (RETURNING fails, plain INSERT succeeds, owner and runtime
+  alike) and reproduced against pristine-HEAD `rls.sql`, so it was pre-existing.
+- **Proving tests:** `tests/test_security_phase11.py`: audit identity + member
+  events; audit business events (import/run/settlements/settings incl. variance
+  −40000, tolerance 0→500, no-change PATCH writes no row); audit detail never
+  contains secrets. `tests/test_security_phase11_live_pg.py`: audit
+  immutability (UPDATE and DELETE both raise `InsufficientPrivilege`, row
+  unchanged); audit tenant isolation (A's rows visible under A's context, zero
+  under B's).
+
+### Fix 38 — Phase 1.1 test-file updates (deliberate behaviour changes, not weakenings)
+- **Change:** `tests/test_runtime_role_live_pg.py::test_alembic_uses_migration_database_url`
+  — hardcoded `"0004 (head)"` is stale now that head is 0005; updated to
+  `"0005 (head)"` with a note that it must move with the next migration. No
+  test was removed, skipped, or weakened in Phase 1.1.
+- **Migrations:** 0005 only. Both dev DBs at 0005; 33 tables; 46 policies
+  (unchanged count — role-scoping changed policies in place); 5 couriers;
+  `app_current_user_role`, `app_current_user_role_effective`,
+  `fn_membership_role_guard` present; runtime EXECUTE on both helpers = true,
+  PUBLIC = false.
+
+---
+
 ## What remains (in order)
 
 ### Phase 2 — before any production use
 1. **Password-reset email provider** (B-F2/C-4.4 remainder, C-7.1 remainder). Reset is still
    log-only for local dev. Choose a provider, wire it, remove the log-only path entirely.
    Never ship log-only reset to production.
-2. **Audit trail** (B-F10). `audit_logs` exists but nothing writes to it. Design and
-   implement security-relevant event logging (login, role changes, revocations, financial
-   mutations).
-3. **Session caps / renewal / step-up** (B-F11). 7-day sessions with no renewal, no
-   per-user cap, no step-up for sensitive actions. Consider 24 h + sliding refresh, or at
-   least document the 7-day choice.
-4. **Role-scoped RLS** (B-F7). The direct-SQL self-promotion probe pins the residual:
-   a member who can run SQL as the runtime role can promote their own membership within
-   their own workspace. Design role-scoped policies; until then the HTTP layer is the only
-   role enforcement.
+2. **Audit trail** (B-F10) — **DONE in Phase 1.1** (fix 37): `audit_service.py` writes
+   23 actions to `audit_logs`; append-only + tenant isolation live-verified. No
+   migration was needed.
+3. **Session caps / renewal / step-up** (B-F11) — **DONE in Phase 1.1** (fixes 33–35):
+   10-session cap (evict-oldest), step-up for owner transfer, logout clears CSRF
+   cookie, reset-confirm rate limit + single commit. Deliberately not done: sliding
+   refresh, rotation on login, 24-hour lifetime, Redis — see `SECURITY_DECISIONS.md`
+   D-5/D-6. Frontend step-up prompt is a follow-up (no UI built in 1.1).
+4. **Role-scoped RLS** (B-F7) — **DONE in Phase 1.1 for `merchant_memberships`**
+   (fix 31). **Deferred:** financial-table role-scoping (8 mutable FOR ALL
+   policies) — needs the fixture sweep first (see `SECURITY_DECISIONS.md` D-3).
+   Residual: an admin can still demote an owner to admin via direct SQL (app
+   blocks it with 422); the DB layer only blocks the owner-grant.
 5. **Redis-backed rate limiting** (B-F6/C-7.1 remainder). In-memory limiters do not survive
    restart and do not share across workers. Also add limits on CSV upload and run creation,
    and a CAPTCHA or email-verification gate on registration.
@@ -398,8 +546,10 @@ findings + 5 positives). Fix numbers below are the task's fix numbers (1–30).
 8. **Export neutralisation** (C-2.3 remainder). Any future CSV/Excel export must neutralise
    formula-like cells (prepend `'` or a space) — flagging at ingest is done; the export
    half is a requirement on the export feature.
-9. **Expired session/token cleanup** (B-F19). Maintenance procedure (scheduled job) to purge
-   expired `user_sessions` / `password_reset_tokens` rows.
+9. **Expired session/token cleanup** (B-F19) — **procedure exists since Phase 1.1**
+   (fix 36): `purge_expired_auth_rows` in `auth_service.py`. **Still open:** no
+   scheduler/invocation — it must be run with an owner/migrator connection during a
+   maintenance window.
 
 ### Production deployment checklist (from Stream C §9, not yet done)
 10. **Secrets/config:** replace every `CHANGE_ME` via a secret manager; set
@@ -426,16 +576,19 @@ findings + 5 positives). Fix numbers below are the task's fix numbers (1–30).
   the in-function assertion broke 29 existing live tests whose fixtures call the function
   directly without setting `app.user_id`. Residual with the single-call-site discipline;
   a future fix must either update those fixtures to set the context or move the check
-  into the application call site.
-- **B-F7** (RLS role-scoped policies) — design change; probe test added (see above).
-- **B-F10** (audit trail) — Phase 2 feature.
-- **B-F11** (session caps/step-up) — Phase 2.
-- **B-F15** (revoked-member session stays valid) — documented design: a revoked member
-  keeps their session but every workspace-scoped call re-checks membership and returns 404.
+  into the application call site. Unchanged in Phase 1.1.
+- **B-F7** (RLS role-scoped policies) — **DONE in Phase 1.1 for `merchant_memberships`**
+  (fix 31); financial-table role-scoping deferred (fixture sweep needed).
+- **B-F10** (audit trail) — **DONE in Phase 1.1** (fix 37).
+- **B-F11** (session caps/step-up) — **DONE in Phase 1.1** (fixes 33–35).
+- **B-F15** (revoked-member session stays valid) — **DONE in Phase 1.1** (fix 32):
+  single-workspace users are logged out on revoke; multi-workspace users keep
+  sessions for other workspaces; manager force-revoke endpoint added.
 - **B-F16** (maintenance SELECT all) — keep NOLOGIN, document: the role is NOLOGIN except
-  during a controlled maintenance window.
-- **B-F18** (identity tables no RLS) — accepted design.
-- **B-F19** (expired session/token cleanup) — maintenance procedure for Phase 2.
+  during a controlled maintenance window. Unchanged in Phase 1.1.
+- **B-F18** (identity tables no RLS) — accepted design. Unchanged in Phase 1.1.
+- **B-F19** (expired session/token cleanup) — **procedure exists since Phase 1.1**
+  (fix 36); scheduler/invocation still open.
 - **A-F8** (P0 python-multipart) — P0 read-only; "never deploy P0 network-reachable".
 - **A-F9** (npm audit blocked) — re-run in CI when the billing lock is resolved.
 - **B-F6 Redis migration** — documented as a production requirement (fix 28 did the
@@ -457,3 +610,13 @@ and deployment items 10–15).
 
 **Phase 1 is ready for review** (see `SECURITY_TEST_REPORT.md` for the test evidence), but
 the project is **NOT production-ready**.
+
+**Phase 1.1 is ready for review** (see `SECURITY_TEST_REPORT.md` for the test evidence
+and `SECURITY_DECISIONS.md` for the decision record). The project is **NOT
+production-ready** — the remaining blockers are unchanged: OD-12/OD-16/OD-17, B-2
+Docker, ADR 1.0 missing, GitHub billing lock, password-reset provider not chosen
+(log-only reset must never ship), market-validation gates not run, no
+merchant-confirmed courier evidence, plus the remaining Phase 2 items above
+(Redis rate limiting, CSV background jobs, object storage, export neutralisation,
+body-size limit, `compose.prod.yml`, purge scheduler, frontend step-up prompt,
+financial-table role-scoping).

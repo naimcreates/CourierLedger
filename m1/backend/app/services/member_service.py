@@ -30,13 +30,14 @@ Revocation and sessions: revoking a membership sets status='revoked'.
 The workspace-authorization layer (workspace_service.get_membership)
 only ever returns ACTIVE memberships, so a revoked member's existing
 session is denied on every workspace endpoint (404) on the very next
-request -- no session row has to be touched for the denial to take
-effect. Global session revocation (auth_service.revoke_all_sessions)
-is deliberately NOT done here: revocation is per-workspace, and the
-revoked user may still hold active memberships in other workspaces;
-deleting all of their sessions would log them out of workspaces
-where they are still a member. A future admin action that needs a
-global logout is a separate endpoint.
+request. Phase 1.1 (B-F15) goes further: when the revoked user holds
+NO other active membership, revoke_member also revokes ALL of their
+sessions (auth_service.revoke_all_sessions), so a single-workspace
+user is logged out entirely on revoke. A multi-workspace user keeps
+their session for their other workspaces -- the revoked workspace
+still 404s via the fresh membership recheck. A manager-only
+"force logout" endpoint (force_revoke_sessions) revokes a member's
+sessions on demand, for cause, regardless of their other memberships.
 
 CL-20 advisory-lock protocol (v0.4 amendment, "CL-20 - CL-15
 shared-user anonymisation serialisation")
@@ -144,9 +145,9 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.db.auth_models import MerchantMembership, User
-from app.db.session import set_tenant_context
+from app.db.session import set_tenant_context, set_user_context
 from app.logging_config import get_logger
-from app.services import auth_service
+from app.services import audit_service, auth_service
 from app.services.workspace_service import get_membership
 
 logger = get_logger(__name__)
@@ -386,6 +387,15 @@ def invite_member(
         existing.role = role
         existing.invited_by_user_id = actor.id
         existing.updated_at = _utcnow()
+        audit_service.record_audit(
+            db,
+            actor=actor,
+            merchant_id=merchant_id,
+            action=audit_service.MEMBERS_INVITED,
+            entity_table="merchant_memberships",
+            entity_id=existing.id,
+            detail={"invitee_user_id": str(invitee.id), "role": role, "reactivated": True},
+        )
         db.commit()
         out = _member_out(db, existing)
         logger.info(
@@ -401,6 +411,16 @@ def invite_member(
         invited_by_user_id=actor.id,
     )
     db.add(membership)
+    db.flush()
+    audit_service.record_audit(
+        db,
+        actor=actor,
+        merchant_id=merchant_id,
+        action=audit_service.MEMBERS_INVITED,
+        entity_table="merchant_memberships",
+        entity_id=membership.id,
+        detail={"invitee_user_id": str(invitee.id), "role": role},
+    )
     db.commit()
     out = _member_out(db, membership)
     logger.info(
@@ -446,6 +466,15 @@ def accept_invitation(
         )
     membership.status = "active"
     membership.updated_at = _utcnow()
+    audit_service.record_audit(
+        db,
+        actor=caller,
+        merchant_id=merchant_id,
+        action=audit_service.MEMBERS_INVITATION_ACCEPTED,
+        entity_table="merchant_memberships",
+        entity_id=membership.id,
+        detail={"role": membership.role},
+    )
     db.commit()
     out = _member_out(db, membership)
     logger.info(
@@ -502,8 +531,18 @@ def change_role(
             "owner_role_immutable",
             "The owner role cannot be changed here. Owner transfer is a separate endpoint (POST /members/transfer-owner, M10).",
         )
+    old_role = target.role
     target.role = new_role
     target.updated_at = _utcnow()
+    audit_service.record_audit(
+        db,
+        actor=actor,
+        merchant_id=merchant_id,
+        action=audit_service.MEMBERS_ROLE_CHANGED,
+        entity_table="merchant_memberships",
+        entity_id=target.id,
+        detail={"target_user_id": str(target.user_id), "old_role": old_role, "new_role": new_role},
+    )
     db.commit()
     out = _member_out(db, target)
     logger.info(
@@ -561,13 +600,108 @@ def revoke_member(
             )
     target.status = "revoked"
     target.updated_at = _utcnow()
+    audit_service.record_audit(
+        db,
+        actor=actor,
+        merchant_id=merchant_id,
+        action=audit_service.MEMBERS_REVOKED,
+        entity_table="merchant_memberships",
+        entity_id=target.id,
+        detail={"target_user_id": str(target.user_id), "role": target.role},
+    )
     db.commit()
     out = _member_out(db, target)
     logger.info(
         "member_revoked",
         extra={"merchant_id": str(merchant_id), "user_id": str(target.user_id)},
     )
+    # Phase 1.1 (B-F15): a revoked user with NO other active
+    # membership loses every session (single-workspace users are
+    # logged out entirely on revoke). A user who is still active in
+    # another workspace keeps their session for that workspace; the
+    # revoked workspace already 404s via the fresh membership
+    # recheck. This is a second, separate commit after the revoke
+    # itself -- a failure here must not roll back the revocation.
+    #
+    # RLS care (live PG): the commit above cleared the
+    # transaction-local contexts, and the merchant_memberships
+    # SELECT policy is user-based OR merchant-based. The actor's
+    # user context cannot see the target's rows in OTHER workspaces,
+    # so the count must run under the TARGET's user context (the
+    # user arm then returns all of the target's membership rows).
+    # The target id comes from the verified membership row, never
+    # from the client, and this context is used for this read only:
+    # the revocation UPDATE above is already committed, and the
+    # session revocation below touches identity tables (no merchant
+    # policy). It is not an impersonation -- no write is authorised
+    # by it.
+    set_user_context(db, target.user_id)
+    set_tenant_context(db, merchant_id)
+    remaining = db.execute(
+        select(func.count())
+        .select_from(MerchantMembership)
+        .where(
+            MerchantMembership.user_id == target.user_id,
+            MerchantMembership.status == "active",
+        )
+    ).scalar_one()
+    if remaining == 0:
+        target_user = db.get(User, target.user_id)
+        if target_user is not None:
+            auth_service.revoke_all_sessions(db, target_user)
     return out
+
+
+def force_revoke_sessions(
+    db: Session, actor: User, merchant_id: uuid.UUID, target_user_id: uuid.UUID
+) -> int:
+    """Manager-only "force logout" for cause (Phase 1.1, B-F15):
+    revoke ALL sessions of one member of this workspace, whether or
+    not they hold memberships elsewhere. The target must hold (or
+    have held) a membership row in this workspace -- an admin cannot
+    log out an arbitrary user. Returns the number of sessions
+    revoked. CL-20: the target user's lock is held across the
+    decision, so this serialises against a concurrent membership
+    mutation for the same user."""
+    _require_manager(db, actor, merchant_id)
+    set_tenant_context(db, merchant_id)
+    target = db.execute(
+        select(MerchantMembership).where(
+            MerchantMembership.merchant_id == merchant_id,
+            MerchantMembership.user_id == target_user_id,
+        )
+    ).scalar_one_or_none()
+    if target is None:
+        raise MembershipNotFoundError("Membership not found.")
+    _acquire_user_locks(db, [target_user_id])
+    _require_manager(db, actor, merchant_id)
+    target_user = db.get(User, target_user_id)
+    if target_user is None:  # pragma: no cover - membership implies a user
+        raise MembershipNotFoundError("Membership not found.")
+    revoked = auth_service.revoke_all_sessions(db, target_user)
+    # revoke_all_sessions committed, which cleared the
+    # transaction-local tenant context; re-assert it before the audit
+    # INSERT or the RLS policy hides the row.
+    set_tenant_context(db, merchant_id)
+    audit_service.record_audit(
+        db,
+        actor=actor,
+        merchant_id=merchant_id,
+        action=audit_service.MEMBERS_SESSIONS_FORCE_REVOKED,
+        entity_table="users",
+        entity_id=target_user_id,
+        detail={"target_user_id": str(target_user_id), "revoked_sessions": revoked},
+    )
+    db.commit()
+    logger.info(
+        "member_sessions_force_revoked",
+        extra={
+            "merchant_id": str(merchant_id),
+            "user_id": str(target_user_id),
+            "revoked": revoked,
+        },
+    )
+    return revoked
 
 
 def transfer_owner(
@@ -691,6 +825,18 @@ def transfer_owner(
             "This workspace would be left with no active owner. "
             "Transfer ownership before revoking the last owner.",
         )
+    audit_service.record_audit(
+        db,
+        actor=actor,
+        merchant_id=merchant_id,
+        action=audit_service.MEMBERS_OWNER_TRANSFERRED,
+        entity_table="merchant_memberships",
+        entity_id=target.id,
+        detail={
+            "from_user_id": str(actor.id),
+            "to_user_id": str(target_user_id),
+        },
+    )
     db.commit()
     out = _member_out(db, target)
     logger.info(

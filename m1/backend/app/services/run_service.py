@@ -97,7 +97,7 @@ from app.db.models import (
 from app.db.session import set_tenant_context
 from app.domain.engine import FIXTURES, reconcile_batch
 from app.logging_config import get_logger
-from app.services import idempotency_service
+from app.services import audit_service, idempotency_service
 from app.services.idempotency_service import IdempotencyConflictError
 from app.services.workspace_service import get_membership
 
@@ -802,6 +802,22 @@ def create_run_from_import(
     run_id = run.id
     n_results = len(engine_result["results"])
     n_excluded = len(excluded)
+    # Idempotency replays and the CL-05 existing-run path return
+    # above without creating a run, so they write no audit row: the
+    # event audited here is the creation of THIS run.
+    audit_service.record_audit(
+        db,
+        actor=user,
+        merchant_id=merchant_id,
+        action=audit_service.RUNS_CREATED,
+        entity_table="reconciliation_runs",
+        entity_id=run.id,
+        detail={
+            "import_batch_id": str(batch.id),
+            "results": n_results,
+            "excluded": n_excluded,
+        },
+    )
     db.commit()
     logger.info("run_created", extra={
         "run_id": str(run_id), "merchant_id": str(merchant_id),

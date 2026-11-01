@@ -61,8 +61,11 @@
 --     role is denied (no policy -> default deny).
 --   merchant_memberships -- SELECT is user-based OR merchant-based
 --     (own rows, or all rows of the context merchant); INSERT/UPDATE
---     are merchant-context only, so a user cannot grant themselves a
---     membership in a workspace they do not belong to.
+--     are ROLE-scoped since Phase 1.1 (B-F7 fix): only an active
+--     owner/admin may insert or manage a membership, only an owner
+--     may set role='owner', and the sole exception is the invited
+--     user accepting their own invitation (backstopped by the
+--     role-guard trigger in triggers.sql).
 --   audit_logs -- merchant_id is NULL for pre-workspace identity events;
 --     the SELECT policy requires merchant_id = context, so NULL-merchant
 --     rows are invisible to tenant sessions (fail-closed). INSERT allows
@@ -138,6 +141,110 @@ COMMENT ON FUNCTION public.app_current_user_id() IS
   'User context for RLS (CL-06/CL-11, v0.1 E.2). Returns the UUID from '
   'the transaction-local app.user_id setting, or NULL for unset, empty '
   'or malformed values. Never raises inside a policy.';
+
+-- ---------------------------------------------------------------------------
+-- Caller-role helper (Phase 1.1, B-F7 fix). Same shape as the two
+-- helpers above: LANGUAGE sql, STABLE, SET search_path TO public,
+-- pg_catalog, never raises. Returns the ACTIVE membership role
+-- ('owner' | 'admin' | 'member' | 'viewer') of the current user in
+-- the current merchant context, or NULL when there is no context or
+-- no active membership (invited/revoked rows do not count). At most
+-- one row can match (uq_membership_merchant_user), so the scalar
+-- SELECT can never return multiple rows. The inner SELECT on
+-- merchant_memberships is policed by that table's SELECT policy
+-- (user-based OR merchant-based arm); with a merchant context set
+-- the merchant arm lets the caller see their own row, and without
+-- one the merchant predicate matches nothing, so the result is
+-- NULL (fail-closed). The SELECT policy calls only the two helpers
+-- above, so there is no recursion through this function.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.app_current_user_role()
+RETURNS text
+LANGUAGE sql
+STABLE
+SET search_path TO public, pg_catalog
+AS $$
+  SELECT mm.role
+    FROM public.merchant_memberships mm
+   WHERE mm.merchant_id = public.app_current_merchant_id()
+     AND mm.user_id = public.app_current_user_id()
+     AND mm.status = 'active'
+$$;
+
+COMMENT ON FUNCTION public.app_current_user_role() IS
+  'Caller role for RLS (Phase 1.1, B-F7 fix). Returns the ACTIVE '
+  'membership role of the current user in the current merchant '
+  'context, or NULL when there is no context or no active '
+  'membership. Never raises inside a policy.';
+
+-- Granted here, next to the definition, like create_workspace()
+-- below (roles.sql does not repeat it): the runtime role needs
+-- EXECUTE because the merchant_memberships policies call it, and
+-- PUBLIC must not have it (B-F17 pattern). Maintenance gets it too,
+-- matching the other two context helpers.
+REVOKE EXECUTE ON FUNCTION public.app_current_user_role() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.app_current_user_role() TO courierledger_runtime;
+GRANT EXECUTE ON FUNCTION public.app_current_user_role() TO courierledger_maintenance;
+
+-- ---------------------------------------------------------------------------
+-- Effective caller-role helper (Phase 1.1, B-F7 fix, transfer_owner
+-- safety). Same shape as the helpers above (LANGUAGE sql, STABLE,
+-- SET search_path, never raises). Returns the caller's role as of
+-- the START of the current transaction's membership changes for
+-- this merchant, when the guard trigger has recorded one, and the
+-- live role otherwise.
+--
+-- Why a snapshot exists at all: transfer_owner() swaps two roles
+-- in one transaction (target member -> owner, caller owner ->
+-- admin), and SQLAlchemy flushes the two UPDATEs in primary-key
+-- order -- the caller's demotion can land BEFORE the target's
+-- promotion. A check that reads the caller's LIVE role would then
+-- see 'admin' for the promotion and reject a legitimate transfer.
+-- The guard trigger (triggers.sql, fn_membership_role_guard)
+-- records the caller's pre-change role in the transaction-local
+-- 'app.membership_role_snapshot' setting ('<merchant uuid>:<role>')
+-- on the first role-changing membership UPDATE of the transaction;
+-- this function prefers that snapshot for the same merchant and
+-- falls back to the live role when there is none, when it names a
+-- different merchant, or when it is malformed.
+--
+-- Trust boundary (no weaker than the rest of RLS): the snapshot is
+-- a transaction-local setting, so a caller running arbitrary SQL as
+-- the runtime role could forge it -- but the same caller can
+-- already forge app.user_id itself (full impersonation), which
+-- defeats every policy here without any snapshot. The control, like
+-- all of RLS, trusts the app to set session context from
+-- server-side session state; the snapshot adds no new capability
+-- to such a caller. It is never consulted for INSERT (which uses
+-- the live role), and it only ever records a role the caller
+-- actually held as their live role when the transaction's first
+-- membership role change was evaluated.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.app_current_user_role_effective()
+RETURNS text
+LANGUAGE sql
+STABLE
+SET search_path TO public, pg_catalog
+AS $$
+  SELECT CASE
+    WHEN current_setting('app.membership_role_snapshot', true) ~
+           '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}:(owner|admin|member|viewer)$'
+         AND split_part(current_setting('app.membership_role_snapshot', true), ':', 1)
+             = public.app_current_merchant_id()::text
+    THEN split_part(current_setting('app.membership_role_snapshot', true), ':', 2)
+    ELSE public.app_current_user_role()
+  END
+$$;
+
+COMMENT ON FUNCTION public.app_current_user_role_effective() IS
+  'Effective caller role for RLS (Phase 1.1, B-F7 fix). The '
+  'transaction-start role snapshot recorded by '
+  'fn_membership_role_guard for this merchant, or the live role '
+  'when there is none. Never raises inside a policy.';
+
+REVOKE EXECUTE ON FUNCTION public.app_current_user_role_effective() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.app_current_user_role_effective() TO courierledger_runtime;
+GRANT EXECUTE ON FUNCTION public.app_current_user_role_effective() TO courierledger_maintenance;
 
 -- ============================================================================
 -- merchants (tenant root): membership-based SELECT (v0.1 E.3, B-1 fix).
@@ -260,16 +367,25 @@ GRANT EXECUTE ON FUNCTION public.create_workspace(uuid, text, text) TO courierle
 -- Append-only tables intentionally have NO update/delete policy.
 -- ============================================================================
 
--- merchant_memberships (B-1 fix): SELECT is user-based OR
--- merchant-based -- a user reads their own membership rows (this is
--- what the merchants membership-based SELECT subquery above relies on,
--- and what the app's list/get flows query), and a merchant-context
--- session reads all memberships of that merchant. INSERT/UPDATE stay
--- merchant-context only: a user cannot grant themselves (or anyone) a
--- membership in a workspace they do not belong to. No DELETE policy:
--- the runtime role has no DELETE grant here (roles.sql); revocation is
--- an UPDATE to status='revoked'. NO FORCE (see the header note): the
--- owner-side create_workspace() function inserts the owner membership.
+-- merchant_memberships (B-1 fix; role-scoped in Phase 1.1, B-F7
+-- fix): SELECT is user-based OR merchant-based -- a user reads
+-- their own membership rows (this is what the merchants
+-- membership-based SELECT subquery above relies on, and what the
+-- app's list/get flows query), and a merchant-context session reads
+-- all memberships of that merchant. INSERT/UPDATE are ROLE-scoped,
+-- not merely merchant-context: only an ACTIVE owner/admin of the
+-- workspace may insert a membership or manage one (invite,
+-- change_role, revoke, reactivation), and only an owner may set
+-- role='owner'. The one exception is self-acceptance: the invited
+-- user themself may flip their OWN invited row to active (the
+-- accept_invitation() path); the role-guard trigger in triggers.sql
+-- backstops that arm, because a policy WITH CHECK cannot compare
+-- NEW.role to OLD.role, so without the trigger an invited user
+-- could smuggle a role change into the accept UPDATE. No DELETE
+-- policy: the runtime role has no DELETE grant here (roles.sql);
+-- revocation is an UPDATE to status='revoked'. NO FORCE (see the
+-- header note): the owner-side create_workspace() function inserts
+-- the owner membership.
 DROP POLICY IF EXISTS merchant_memberships_tenant_all ON public.merchant_memberships;
 DROP POLICY IF EXISTS merchant_memberships_tenant_select ON public.merchant_memberships;
 DROP POLICY IF EXISTS merchant_memberships_tenant_insert ON public.merchant_memberships;
@@ -280,10 +396,45 @@ CREATE POLICY merchant_memberships_tenant_select ON public.merchant_memberships
     OR merchant_id = public.app_current_merchant_id()
   );
 CREATE POLICY merchant_memberships_tenant_insert ON public.merchant_memberships
-  FOR INSERT WITH CHECK (merchant_id = public.app_current_merchant_id());
+  FOR INSERT WITH CHECK (
+    merchant_id = public.app_current_merchant_id()
+    AND public.app_current_user_role() IN ('owner', 'admin')
+  );
+-- One combined UPDATE policy (not two split policies): PostgreSQL
+-- ORs the USING of one permissive policy with the WITH CHECK of
+-- another, so a manager arm and a self-accept arm in separate
+-- policies could mix in ways neither arm allows alone. In a single
+-- policy the two arms stay paired. Manager arm: an active
+-- owner/admin manages any membership of the workspace; only an
+-- owner may set role='owner' (admins cannot create owners at the DB
+-- layer; owner transfer is owner-only in the app). Self-accept arm:
+-- the invited user on their own invited row only, becoming active.
+-- The manager arm's WITH CHECK reads the EFFECTIVE role
+-- (app_current_user_role_effective()), not the live role: the
+-- transfer_owner() swap changes two rows in one transaction and
+-- the caller's demotion can be flushed before the target's
+-- promotion, so the live role would read 'admin' for the promotion
+-- and reject a legitimate transfer. The effective role is the
+-- caller's pre-change role recorded by the guard trigger (see
+-- rls.sql helper comment and triggers.sql); USING still reads the
+-- live role, so visibility never outlives the caller's live
+-- manager status.
 CREATE POLICY merchant_memberships_tenant_update ON public.merchant_memberships
-  FOR UPDATE USING (merchant_id = public.app_current_merchant_id())
-  WITH CHECK (merchant_id = public.app_current_merchant_id());
+  FOR UPDATE USING (
+    merchant_id = public.app_current_merchant_id()
+    AND (
+      public.app_current_user_role() IN ('owner', 'admin')
+      OR (user_id = public.app_current_user_id() AND status = 'invited')
+    )
+  )
+  WITH CHECK (
+    merchant_id = public.app_current_merchant_id()
+    AND (
+      (public.app_current_user_role_effective() IN ('owner', 'admin')
+       AND (role <> 'owner' OR public.app_current_user_role_effective() = 'owner'))
+      OR (user_id = public.app_current_user_id() AND status = 'active')
+    )
+  );
 ALTER TABLE public.merchant_memberships NO FORCE ROW LEVEL SECURITY;
 
 -- merchant_courier_accounts (mutable, audited)
@@ -450,6 +601,20 @@ CREATE POLICY settlement_variance_calculation_inputs_tenant_insert ON public.set
 
 -- workspace_settings (mutable, audited; tolerance settable only by
 -- Owner/Admin -- an application rule, not expressible in this policy)
+-- Phase 1.1 (B-F7 follow-up): a DB-layer viewer-block on the mutable
+-- FOR ALL policies (this table and the other seven named in the
+-- Phase 1.1 brief) was EVALUATED and DEFERRED, not overlooked. The
+-- app path would be safe (deps.py sets app.user_id on every
+-- authenticated request), but the live-test fixtures seed these
+-- tables by direct SQL as the owner role with merchant context only
+-- and no app.user_id -- the owner is FORCE-RLS policed on these
+-- tables, so a role requirement would return NULL and block every
+-- seeded write (19 merchant-context-only set_config sites; only 3
+-- test files ever set app.user_id). Fixing that needs a fixture
+-- sweep across ~7 files, out of scope for this milestone. The
+-- app_current_user_role() helper exists and the membership table
+-- proves the pattern; financial-table role-scoping remains
+-- app-layer-only (require_write_role) until that sweep happens.
 DROP POLICY IF EXISTS workspace_settings_tenant_all ON public.workspace_settings;
 CREATE POLICY workspace_settings_tenant_all ON public.workspace_settings
   FOR ALL USING (merchant_id = public.app_current_merchant_id())

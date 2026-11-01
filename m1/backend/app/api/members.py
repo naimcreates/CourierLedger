@@ -34,7 +34,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_csrf
+from app.api.deps import get_current_user, require_csrf, require_step_up
 from app.db.auth_models import User
 from app.db.session import get_db
 from app.config import settings
@@ -183,17 +183,42 @@ def revoke_member(
     return MemberOut(**member)
 
 
+@router.post("/{user_id}/revoke-sessions", dependencies=[Depends(require_csrf)])
+def force_revoke_sessions(
+    workspace_id: uuid.UUID,
+    user_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Manager-only "force logout" for cause (Phase 1.1, B-F15):
+    revoke ALL sessions of one member of this workspace, whether or
+    not they hold memberships elsewhere. The target must hold (or
+    have held) a membership row in this workspace -- a manager cannot
+    log out an arbitrary user. Returns {"revoked": n}."""
+    revoked = _map_errors(
+        member_service.force_revoke_sessions, db, user, workspace_id, user_id
+    )
+    return {"revoked": revoked}
+
+
 @router.post("/transfer-owner", dependencies=[Depends(require_csrf)])
 def transfer_owner(
     workspace_id: uuid.UUID,
     body: TransferOwnerRequest,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_step_up),
     db: Session = Depends(get_db),
 ) -> MemberOut:
     """Transfer ownership to another active member. Only the current
     owner may call it (403 otherwise); non-members get 404. The old
     owner becomes an admin (see transfer_owner in member_service.py
-    for why). Returns the NEW owner's membership."""
+    for why). Returns the NEW owner's membership.
+
+    Phase 1.1 (B-F11): this endpoint requires step-up
+    authentication -- a live step-up verification (POST
+    /api/auth/step-up) or a session created within the last 15
+    minutes. An older session gets 403 "Step-up authentication
+    required. Please re-enter your password."; the frontend step-up
+    prompt is a follow-up (no UI change in 1.1)."""
     member = _map_errors(
         member_service.transfer_owner, db, user, workspace_id, body.user_id
     )

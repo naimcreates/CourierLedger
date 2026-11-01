@@ -5,9 +5,11 @@ Covers: the invite -> accept flow, idempotent accept and
 re-invite, unknown-email invite (422, no invented user), role
 validation (never owner via these endpoints), role change incl.
 owner immutability, revoke incl. the last-active-owner guard
-(OD-11), immediate workspace denial for a revoked member (their
-session still resolves globally, but every workspace endpoint is
-404), non-member 404s, non-admin 403s, missing-CSRF 403s, and the
+(OD-11), immediate workspace denial for a revoked member (Phase
+1.1, B-F15: a revoked user with no other active membership also
+loses every session -- 401 everywhere, not just workspace 404s;
+see test_revoke_denies_workspace_immediately_and_reinvite_works),
+non-member 404s, non-admin 403s, missing-CSRF 403s, and the
 CL-20 lock-key derivation (deterministic, total order).
 
 Live-PostgreSQL coverage (RLS + runtime role + the advisory lock
@@ -379,6 +381,15 @@ def test_admin_can_manage_members():
 # ---------------------------------------------------------------------------
 
 def test_revoke_denies_workspace_immediately_and_reinvite_works():
+    # Phase 1.1 (B-F15) BEHAVIOUR CHANGE, recorded here: revoking a
+    # user with no other active membership now also revokes ALL of
+    # their sessions (previously the session stayed valid globally
+    # and only workspace endpoints 404'd). The assertions below
+    # reflect the new behaviour: after revoke the member's session
+    # is 401 everywhere, so the member must log in again before the
+    # re-invite flow can continue. A multi-workspace user keeps
+    # their session for their other workspaces (covered in
+    # tests/test_security_phase11.py).
     owner = _client_for("m9-owner13@example.com")
     member_client = _client_for("m9-member13@example.com")
     ws = _workspace(owner)
@@ -396,10 +407,19 @@ def test_revoke_denies_workspace_immediately_and_reinvite_works():
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "revoked"
 
-    # The revoked member's existing session is denied on workspace
-    # endpoints immediately (404 -- the same as a non-member).
+    # B-F15: the revoked member's session is gone entirely (they
+    # hold no other active membership), so every endpoint is 401 --
+    # including /api/auth/me -- not just the workspace 404s.
+    assert member_client.get("/api/auth/me").status_code == 401
+    assert member_client.get(f"/api/workspaces/{ws}").status_code == 401
+    assert member_client.get(f"/api/workspaces/{ws}/members").status_code == 401
+    assert member_client.get("/api/workspaces").status_code == 401
+
+    # Log back in (the account still exists; only the session was
+    # revoked) and continue the original flow: the revoked
+    # membership still denies the workspace until re-invited.
+    login(member_client, "m9-member13@example.com")
     assert member_client.get(f"/api/workspaces/{ws}").status_code == 404
-    assert member_client.get(f"/api/workspaces/{ws}/members").status_code == 404
     assert member_client.get("/api/workspaces").status_code == 200
     assert member_client.get("/api/workspaces").json() == []
 

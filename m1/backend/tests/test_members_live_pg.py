@@ -14,9 +14,11 @@ Asserts, live:
   * Unknown-email invite is 422 (no invented user).
   * Role change member -> admin, and the new admin can invite.
   * Revoke: the revoked user's EXISTING session is denied on
-    workspace endpoints immediately (404), while /me still resolves
-    (per-workspace denial, not a global logout -- see the service
-    docstring).
+    workspace endpoints immediately (404 while the session lives),
+    and -- Phase 1.1 (B-F15) -- a revoked user with no other active
+    membership loses every session (401 on /me too). A
+    multi-workspace user keeps their session for their other
+    workspaces (covered in tests/test_security_phase11_live_pg.py).
   * Last-active-owner revoke is 422; revoke succeeds while a second
     (seeded) owner exists, and the last owner is then guarded again.
   * Non-member members-list is 404 (no leak).
@@ -185,15 +187,30 @@ def test_revoke_denies_live_session_live(live):
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "revoked"
 
-    # The revoked user's EXISTING session is denied on workspace
-    # endpoints immediately.
+    # Phase 1.1 (B-F15) BEHAVIOUR CHANGE, recorded here: the member
+    # holds no other active membership, so revoke also revoked ALL
+    # of their sessions -- every endpoint is 401 now, including /me.
+    # Previously (documented in the old service docstring)
+    # revocation was per-workspace only and the session still
+    # resolved globally; that behaviour is gone for
+    # single-workspace users. Multi-workspace users keep their
+    # session for their other workspaces (see
+    # tests/test_security_phase11_live_pg.py).
+    assert member.get("/api/auth/me").status_code == 401
+    assert member.get(f"/api/workspaces/{ws}").status_code == 401
+    assert member.get("/api/workspaces").status_code == 401
+
+    # The account still exists: log back in (authed_client registers
+    # with live_pg's default password, so login with no explicit
+    # password) and the revoked membership still denies the workspace
+    # (404, empty list).
+    from tests.live_pg import login
+
+    login(member, "live-m9-member4@example.com")
     assert member.get(f"/api/workspaces/{ws}").status_code == 404
     assert member.get(f"/api/workspaces/{ws}/members").status_code == 404
     assert member.get("/api/workspaces").status_code == 200
     assert member.get("/api/workspaces").json() == []
-    # ...but the session itself still resolves globally: revocation
-    # is per-workspace, not a global logout (documented).
-    assert member.get("/api/auth/me").status_code == 200
 
 
 def test_last_owner_guard_live(live):

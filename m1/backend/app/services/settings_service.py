@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 from app.db.auth_models import User
 from app.db.models import WorkspaceSettings
 from app.db.session import set_tenant_context
+from app.services import audit_service
 
 DEFAULT_TOLERANCE_POISHA = 0
 DEFAULT_LOCALE = "en_bn"
@@ -107,6 +108,10 @@ def update_settings(
             raise ValueError("locale must be 'en' or 'en_bn'.")
 
     row = get_settings_row(db, merchant_id)
+    # Old values for the audit trail (Phase 1.1, B-F10): a workspace
+    # with no row yet has the documented effective defaults.
+    old_tolerance = row.tolerance_poisha if row is not None else DEFAULT_TOLERANCE_POISHA
+    old_locale = row.locale if row is not None else DEFAULT_LOCALE
     if row is None:
         if tolerance_poisha is UNSET and locale is UNSET:
             # No-op PATCH on a workspace with no row yet: return the
@@ -132,6 +137,26 @@ def update_settings(
     # _updated_at() carries a server default but no onupdate, so set
     # it explicitly on every write.
     row.updated_at = _utcnow()
+    # Flush so a newly created row has its id for the audit row below.
+    db.flush()
+    # Audit only when a value actually changed (a PATCH that sends
+    # no fields, or the same values, still bumps updated_at above
+    # but records no settings event -- there is nothing to audit).
+    changes: dict = {}
+    if tolerance_poisha is not UNSET and row.tolerance_poisha != old_tolerance:
+        changes["tolerance_poisha"] = {"old": old_tolerance, "new": row.tolerance_poisha}
+    if locale is not UNSET and row.locale != old_locale:
+        changes["locale"] = {"old": old_locale, "new": row.locale}
+    if changes:
+        audit_service.record_audit(
+            db,
+            actor=user,
+            merchant_id=merchant_id,
+            action=audit_service.SETTINGS_UPDATED,
+            entity_table="workspace_settings",
+            entity_id=row.id,
+            detail=changes,
+        )
     db.commit()
     # Commit ends the transaction and clears the transaction-local
     # RLS tenant context; re-assert it before refresh, or the

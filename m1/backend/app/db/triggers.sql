@@ -677,6 +677,98 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- 10. Membership role guard (Phase 1.1, B-F7 fix)
+--    A role change on a membership row is permitted only when the
+--    caller is an active owner/admin of the workspace, and only an
+--    owner may grant the owner role. This closes the hole the
+--    self-accept RLS arm leaves open: a policy WITH CHECK cannot
+--    compare NEW.role to OLD.role, so an invited user accepting
+--    their own invitation could otherwise smuggle a role change
+--    (e.g. viewer -> owner) into the accept UPDATE. The trigger
+--    fires for direct SQL as well as for the app.
+--    Plain (invoker-rights) function, deliberately NOT SECURITY
+--    DEFINER -- unlike the other functions in this file (CL-22 rule
+--    1): the guard must resolve the CALLER's role under the caller's
+--    own RLS visibility, not as the table owner (who bypasses RLS
+--    on this NO FORCE table). It reads only the caller's own
+--    membership row, via public.app_current_user_role(), and the
+--    session settings it relies on are the caller's own
+--    transaction-local context. Safe for the sanctioned flows:
+--    change_role (caller owner/admin), revoke_member (role
+--    unchanged), transfer_owner (caller owner; both role changes of
+--    the swap), accept_invitation (role unchanged), invite
+--    reactivation (caller owner/admin).
+--
+--    TRANSACTION-START ROLE SNAPSHOT (transfer_owner safety): the
+--    swap changes two rows in one transaction, and the flush order
+--    of the two UPDATEs is not controlled here (SQLAlchemy emits
+--    them in primary-key order, so the caller's demotion can land
+--    BEFORE the target's promotion). A check that reads the
+--    caller's LIVE role would then see 'admin' for the promotion
+--    and reject a legitimate transfer, so the guard records the
+--    caller's pre-change role on the FIRST role-changing
+--    membership UPDATE of the transaction, in the
+--    transaction-local 'app.membership_role_snapshot' setting
+--    ('<merchant uuid>:<role>'), and both the manager check and
+--    the owner-grant check below consult that snapshot via
+--    public.app_current_user_role_effective() (same-merchant only;
+--    otherwise the live role). The snapshot is written only from
+--    the live role lookup, only when the caller actually holds a
+--    role, and only on a role-changing update -- a caller who
+--    merely touches their own row (updated_at, status) does not
+--    create one, so an admin cannot manufacture an 'owner'
+--    snapshot by updating their own row first. Trust boundary: the
+--    snapshot is a transaction-local setting, so a caller running
+--    arbitrary SQL as the runtime role could forge it -- but the
+--    same caller can already forge app.user_id itself (full
+--    impersonation), which defeats every policy here without any
+--    snapshot; the snapshot adds no new capability (see the
+--    app_current_user_role_effective() comment in rls.sql).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.fn_membership_role_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO public, pg_catalog
+AS $$
+DECLARE
+  v_live_role text;
+  v_effective_role text;
+  v_merchant text;
+BEGIN
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    v_merchant := public.app_current_merchant_id()::text;
+    v_live_role := public.app_current_user_role();
+    -- Record the transaction-start snapshot once, from the live
+    -- role as it stands BEFORE this row changes (a BEFORE trigger
+    -- sees the pre-update table state for the firing row, and the
+    -- caller's own row is untouched by this statement). Only when
+    -- the caller actually holds a role; an invited/revoked caller
+    -- (live role NULL) records nothing and is denied below.
+    -- Unset is tested as NULL-or-empty: a custom GUC that was set
+    -- transaction-locally reverts to '' (not NULL) when the
+    -- transaction ends, so IS NULL alone would never record a
+    -- snapshot in a later transaction on the same connection
+    -- (verified by hand in a scratch DB: after COMMIT the setting
+    -- reads '', and the next transaction's snapshot was silently
+    -- skipped until this check was widened).
+    IF v_live_role IS NOT NULL AND v_merchant IS NOT NULL
+       AND COALESCE(current_setting('app.membership_role_snapshot', true), '') = '' THEN
+      PERFORM set_config('app.membership_role_snapshot',
+        v_merchant || ':' || v_live_role, true);
+    END IF;
+    v_effective_role := public.app_current_user_role_effective();
+    IF v_effective_role IS NULL OR v_effective_role NOT IN ('owner', 'admin') THEN
+      RAISE EXCEPTION 'merchant_memberships: role change on membership % requires an active owner/admin caller', OLD.id;
+    END IF;
+    IF NEW.role = 'owner' AND v_effective_role IS DISTINCT FROM 'owner' THEN
+      RAISE EXCEPTION 'merchant_memberships: only an active owner may grant the owner role (membership %)', OLD.id;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 -- ============================================================================
 -- Trigger attachments. BEFORE triggers fire immediately; CONSTRAINT
 -- TRIGGERs are DEFERRABLE INITIALLY DEFERRED and fire at commit.
@@ -712,6 +804,12 @@ DROP TRIGGER IF EXISTS trg_append_only_guard ON public.settlement_variance_calcu
 CREATE TRIGGER trg_append_only_guard BEFORE UPDATE OR DELETE ON public.settlement_variance_calculation_inputs FOR EACH ROW EXECUTE FUNCTION public.fn_append_only_guard();
 DROP TRIGGER IF EXISTS trg_append_only_guard ON public.audit_logs;
 CREATE TRIGGER trg_append_only_guard BEFORE UPDATE OR DELETE ON public.audit_logs FOR EACH ROW EXECUTE FUNCTION public.fn_append_only_guard();
+
+-- Membership role guard (Phase 1.1, B-F7 fix).
+DROP TRIGGER IF EXISTS trg_membership_role_guard ON public.merchant_memberships;
+CREATE TRIGGER trg_membership_role_guard
+  BEFORE UPDATE ON public.merchant_memberships
+  FOR EACH ROW EXECUTE FUNCTION public.fn_membership_role_guard();
 
 -- Reconciliation-run guard.
 DROP TRIGGER IF EXISTS trg_reconciliation_run_guard ON public.reconciliation_runs;

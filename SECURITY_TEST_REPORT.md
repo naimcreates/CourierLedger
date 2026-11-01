@@ -4,7 +4,114 @@ Phase 1 of production-readiness: production security & repository hardening. All
 are actual executed results, not claims. Baselines (verified by Ren 2026-11-01, before Phase 1):
 backend 316 passed live / 246 passed + 70 skipped SQLite-only, Vitest 50, Playwright 3, P0 47.
 
-## Results
+# Phase 1.1 (2026-11-01) — Security Closure & Authorization Hardening
+
+Phase 1.1 closed B-F7 (role-scoped RLS), B-F10 (audit trail), B-F11 (session caps /
+step-up), B-F15 (revoked-member sessions) and B-F19 (cleanup procedure). All counts
+below are actual executed results from the final combined tree, run alone (the full
+backend suite must be run alone — concurrent pytest processes against the shared
+SQLite test file `/tmp/cl_m1_test.db` produce spurious `no such table` failures,
+proven in M8 and re-observed in Phase 1.1). Baselines for this phase (Phase 1
+verified results): backend 356 passed live / 275 passed + 81 skipped SQLite-only,
+Vitest 50, Playwright 3, P0 47.
+
+## Results (Phase 1.1)
+
+| Suite | Command / conditions | Result |
+|---|---|---|
+| Backend, SQLite-only | `m1/backend/.venv/bin/python -m pytest tests/ -q` (no `CL_LIVE_PG_PASSWORD`) | **288 passed, 98 skipped, 0 failed** (28 warnings — all pre-existing deprecation warnings, incl. `HTTP_422_UNPROCESSABLE_ENTITY`) |
+| Backend, full live, runtime role | `CL_LIVE_PG_PASSWORD=<.env value> CL_LIVE_PG_ROLE=courierledger_runtime .venv/bin/python -m pytest tests/ -q` | **386 passed, 0 failed, 0 skipped** (28 warnings) |
+| Backend, new RLS live file only | Same env, `tests/test_rls_roles_live_pg.py` | **11 passed, 0 failed** |
+| Backend, new Phase 1.1 live file only | Same env, `tests/test_security_phase11_live_pg.py` | **6 passed, 0 failed** |
+| Backend, new Phase 1.1 SQLite file only | `tests/test_security_phase11.py` | **13 passed, 0 failed** |
+| Frontend build | `m1/frontend: npm run build` | **Passed** (built in 2.07s; one pre-existing chunk-size warning >500 kB) |
+| Frontend unit tests | `m1/frontend: npx vitest run` | **50 passed (8 files), 0 failed** |
+| Playwright e2e | `m1/frontend: npx playwright test` (Chromium, 1 worker) | **3 passed, 0 failed** (31.4s) |
+| P0 prototype (read-only check) | `prototype-p0/.venv/bin/python -m pytest prototype-p0/tests -q` | **47 passed, 0 failed** — P0 untouched |
+
+### Count reconciliation (Phase 1.1)
+- SQLite-only: 275 Phase 1 passed + 13 new Phase 1.1 SQLite tests = 288 passed.
+  Skipped: 81 Phase 1 live-PG skips + 17 new Phase 1.1 live tests (11 RLS + 6
+  session/audit live) = 98.
+- Full live (runtime role): 356 Phase 1 + 13 new SQLite tests (which also run live)
+  + 17 new live tests = 386 passed. 288 + 98 = 386 — the two runs agree exactly.
+- Two pre-existing live tests were updated for deliberate Phase 1.1 changes (the
+  revoke tests now expect a single-workspace member's session to be 401 after revoke
+  and re-log-in to continue; the alembic test expects head 0005) and pass. No test
+  was removed, skipped, or weakened.
+- Vitest 50, Playwright 3, P0 47 are unchanged from Phase 1 — no regressions.
+- Both dev DBs verified after: alembic 0005, 33 tables, 46 policies (unchanged
+  count — role-scoping changed policies in place), 5 couriers, runtime EXECUTE on
+  `app_current_user_role` / `app_current_user_role_effective` = true, PUBLIC = false.
+
+## What the new tests prove (Phase 1.1)
+
+- `m1/backend/tests/test_rls_roles_live_pg.py` (runtime role, 11 tests): helper
+  values (NULL no-context/invited/outsider, owner/viewer, PUBLIC cannot EXECUTE /
+  runtime can); cross-tenant UPDATE blocked (rowcount 0) + cross-tenant INSERT
+  rejected + B row unchanged; viewer/member INSERT rejected, admin INSERT works;
+  member/viewer self-promote blocked (rowcount 0); admin role-change works but
+  owner-grant raises; owner role changes + transfer-style swap (both orders);
+  demotion-first swap with a second owner present; admin cannot manufacture an
+  owner snapshot; invited-user smuggle raises, accept-shaped status-only UPDATE
+  works, role unchanged; HTTP accept end-to-end; admin revoke + reactivate via
+  direct SQL. The Phase 1 B-F7 probe test was rewritten to assert blocking
+  (`test_direct_sql_self_promotion_blocked_by_rls_b_f7`).
+- `m1/backend/tests/test_security_phase11.py` (SQLite, 13 tests): session cap
+  (11th login evicts oldest; old token 401, new works, exactly 10 live); step-up
+  transfer flow (aged session → 403; wrong password → 401, still 403; correct →
+  200, transfer works); fresh-login + stale step-up (expired verification → 403,
+  re-verify → 200); revoke single-workspace (401 everywhere incl. `/auth/me`);
+  revoke multi-workspace (session survives for other workspace, revoked one 404s);
+  force-revoke endpoint (manager-only, 403/404 cases, target's 2 sessions 401,
+  others unaffected); reset-confirm single commit (both prior sessions 401, token
+  consumed, new password works); reset-confirm rate limit (50× 400 then 429);
+  logout clears CSRF cookie (Max-Age=0 on both cookies); audit identity + member
+  events; audit business events (import/run/settlements/settings incl. variance
+  −40000, tolerance 0→500, no-change PATCH writes no row); audit detail never
+  contains secrets; purge (expired session + expired/used tokens deleted,
+  live/revoked-unexpired rows kept).
+- `m1/backend/tests/test_security_phase11_live_pg.py` (runtime role, 6 tests):
+  revoke single/multi-workspace live; transfer + step-up live (fresh works,
+  16-min-old session → 403 via direct-SQL ageing, wrong step-up 401, correct
+  step-up → transfer works, last-owner revoke still 422); audit immutability
+  (UPDATE and DELETE both raise `InsufficientPrivilege`, row unchanged); audit
+  tenant isolation (A's rows visible under A's context, zero under B's); session
+  cap live (11 HTTP logins, oldest revoked, 10 live / 1 revoked in SQL).
+- Service-layer probe (DB stream, real `member_service` via SQLAlchemy as the
+  runtime role): create/invite/accept/change_role (owner+admin)/viewer-403/
+  admin-to-owner-422/revoke/re-invite/`transfer_owner` both directions/
+  demoted-owner-403 — all passed.
+
+## Intermediate failures in Phase 1.1 — what they were, and why the final numbers stand
+
+- **Audit INSERT … RETURNING blocker (found live, fixed app-side).** The first
+  live run after the audit call sites landed 500'd on register: `INSERT INTO
+  audit_logs` violated RLS because the ORM emits `INSERT ... RETURNING
+  created_at` and PostgreSQL applies the SELECT policy to the returned row,
+  which a NULL-merchant row can never pass. Reproduced identically against a
+  pristine-HEAD `rls.sql` database, so it was pre-existing, not caused by the
+  Phase 1.1 SQL changes. Fixed by setting `created_at` explicitly in
+  `record_audit` (plain INSERT, no RETURNING). The full live runs quoted above
+  are after this fix.
+- **Concurrent-run interference.** A full live run executed while the two
+  implementation streams were still editing files showed 44 failed / 200
+  passed / 151 errors, dominated by the RETURNING blocker above and by two
+  pytest processes sharing `/tmp/cl_m1_test.db`. Two SQLite runs with the same
+  cause showed spurious `sqlite3.OperationalError: no such table: users`. All
+  were discarded; the numbers above are from clean solo runs of the final
+  tree (SQLite 288/98, live 386/0), which reconcile exactly.
+- **One test bug in the new RLS file, fixed:** a rollback after an expected
+  error also undid an earlier in-transaction admin change — fixed by
+  committing the admin change before the grant attempt; re-verified passing.
+- **One test bug in the app stream's revoke-test update, fixed:** the first
+  re-login attempt used the module's random `PASSWORD` constant instead of
+  the `live_pg` default password; fixed to log in with the default password.
+
+---
+
+## Results (Phase 1)
+
 
 | Suite | Command / conditions | Result |
 |---|---|---|
