@@ -214,8 +214,12 @@ test.describe('happy path: register → workspace → import → run → settle'
       await page.getByLabel('Expected payout ৳ (optional)').fill('1000')
       await page.getByRole('button', { name: 'Create batch' }).click()
       await expect(page).toHaveURL(/\/settlement-batches\/[0-9a-f-]+$/)
+      // exact: true — without it the name matches two headings
+      // ("Settlement Batches" and "Create a settlement batch") and
+      // the assertion fails with a strict-mode violation (observed
+      // 2026-11-01; the batch detail page itself had loaded fine).
       await expect(
-        page.getByRole('heading', { name: 'Settlement batch' }),
+        page.getByRole('heading', { name: 'Settlement batch', exact: true }),
       ).toBeVisible()
     })
 

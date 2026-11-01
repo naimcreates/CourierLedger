@@ -11,6 +11,18 @@ a GitHub-hosted runner. **It is not a CI pass and not a production
 readiness claim** — M1 remains a local development build (see
 `m1/README.md` §7).
 
+**Container-restart note (2026-11-01, ~16:0x Dhaka):** after the M12
+verification below, a service restart replaced the container and
+PostgreSQL 16 vanished entirely (no `/usr/lib/postgresql`, no
+`/var/lib/postgresql`, no `/etc/postgresql`, nothing on port 5432).
+It was restored per §1a (recovery actually used, below) and the
+Playwright suite was re-run and passed first try (**3 passed, 26.5s**,
+see §5). The backend 316/0/0, Vitest 50 and P0 47 figures in §0 are
+Ren's verification from before that restart; the e2e figure is the
+post-restore re-verification. The other suites were not re-run after
+the restore — treat them as verified in the previous container, not
+in the current one, until re-run.
+
 ## 0. What this procedure proves — and what it does not
 
 Proves, on this machine, against real PostgreSQL 16:
@@ -90,6 +102,30 @@ pg_ctlcluster 16 main start
 Then provision roles and databases exactly as in `m1/README.md` §3
 (§2 below), and re-run the full suite before treating the database
 as verified.
+
+**Recovery actually used, 2026-11-01 ~16:0x Dhaka (container
+replacement #4):** `apt-get install -y postgresql` failed with
+"Unable to locate package postgresql" (an `apt-get update` was still
+running in the background holding the lists lock, and the package
+lists were stale). The packages were installed from the cached
+`.deb`s in `/var/cache/apt/archives/` instead:
+`dpkg -i postgresql-client-common postgresql-common
+postgresql-client-16 postgresql-16 postgresql-contrib postgresql`
+then the missing dependencies from the same cache — `libpq5`,
+`libjson-perl`, `ssl-cert`, `libllvm17t64` — then
+`dpkg --configure postgresql-16` (it had stayed unconfigured until
+`libllvm17t64` was present; `apt-get check` reported it "not
+installable" only because the lists were stale). The cluster was
+then created UTF8 as above and verified (`UTF8`, PostgreSQL 16.15,
+online on 5432). Provisioning ran from a throwaway script in `/tmp`
+that read the password from `m1/backend/.env` at runtime (never
+printed, temp password file deleted afterwards): roles
+`courierledger` / `courierledger_runtime` created (or passwords
+reset to the `.env` value), both DBs created, Alembic 0002 +
+`rls.sql` / `triggers.sql` / `roles.sql` / seed on both. Verified:
+both DBs 33 tables, alembic `0002`, 46 policies, 5 couriers; both
+roles authenticate with the `.env` password. The script was deleted
+after use.
 
 ## 2. Database provisioning (native PostgreSQL, no Docker)
 
@@ -299,6 +335,16 @@ Prerequisites and traps:
   failure: copy `frontend/test-results/` aside before re-running,
   and report exactly what happened including any retry — do not
   silently re-run until green.
+- **Selector fix (2026-11-01, M12):** Ren's first independent e2e run
+  failed with a strict-mode violation — the loose heading name
+  `'Settlement batch'` matched both `'Settlement Batches'` (h1) and
+  `'Create a settlement batch'` (h2); the batch detail page itself
+  had loaded correctly. Fixed in
+  `frontend/e2e/happy-path.spec.ts` (~line 222) with
+  `getByRole('heading', { name: 'Settlement batch', exact: true })`
+  plus a comment. After the container-restart PostgreSQL restore
+  the suite passed **first try: 3 passed, 0 failed, 26.5s** — the
+  selector was the only change; no app code was touched.
 - No browser visit is needed to run the suite; Chromium headless
   shell is already installed (`npx playwright install chromium` if
   `~/.cache/ms-playwright/` is ever wiped).
