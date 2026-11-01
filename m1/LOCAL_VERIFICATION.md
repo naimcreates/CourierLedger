@@ -23,14 +23,30 @@ post-restore re-verification. The other suites were not re-run after
 the restore — treat them as verified in the previous container, not
 in the current one, until re-run.
 
+**Container-replacement note #2 (2026-11-01, Phase 1.1
+re-verification):** the container was replaced AGAIN and PostgreSQL
+16 vanished entirely a second time (same symptoms; `/var/cache/apt/archives`
+held no postgres .debs this time). Restored via `apt-get update` +
+`apt-get install postgresql` (70.5 MB fetched — the apt path worked
+this time); the auto-created cluster was already UTF8, no recreate
+needed. Provisioning hit the fresh-cluster ordering trap now
+documented in §2 (NOLOGIN roles first, then Alembic, then
+rls/triggers, then roles.sql, then seed). Both DBs re-verified at
+Alembic **0005**, 33 tables, 46 policies, 5 couriers. Full re-run in
+this container: backend SQLite **288 passed / 98 skipped**, backend
+live (runtime role) **386 passed, 0 failed** (251.8s), Vitest **50
+passed**, Playwright **3 passed (31.9s, first try)**, P0 **47 passed**
+— the Phase 1.1 numbers in §0 are now verified in the current
+container, not just the previous one.
+
 ## 0. What this procedure proves — and what it does not
 
 Proves, on this machine, against real PostgreSQL 16:
 
 | Suite | Command | Expected result (2026-11-01) |
 |---|---|---|
-| Backend pytest, SQLite suite (live modules skip) | `m1/backend`: `.venv/bin/python -m pytest tests/ -q` (no live env) | **246 passed, 70 skipped, 0 failed** |
-| Backend pytest, full suite incl. live PostgreSQL (runtime role) | `m1/backend`: `CL_LIVE_PG_PASSWORD=<password> CL_LIVE_PG_ROLE=courierledger_runtime .venv/bin/python -m pytest tests/ -q` | **316 passed, 0 skipped, 0 failed** |
+| Backend pytest, SQLite suite (live modules skip) | `m1/backend`: `.venv/bin/python -m pytest tests/ -q` (no live env) | **288 passed, 98 skipped, 0 failed** (was 246/70 before Phase 1.1) |
+| Backend pytest, full suite incl. live PostgreSQL (runtime role) | `m1/backend`: `CL_LIVE_PG_PASSWORD=<password> CL_LIVE_PG_ROLE=courierledger_runtime .venv/bin/python -m pytest tests/ -q` | **386 passed, 0 skipped, 0 failed** (was 316 before Phase 1.1; 288 + 98 = 386) |
 | Frontend production build | `m1/frontend`: `npm run build` | pass (198 modules; pre-existing >500 kB chunk warning only) |
 | Frontend Vitest | `m1/frontend`: `npm test` | **50 passed, 0 failed** (8 files) |
 | Playwright e2e (real backend + PostgreSQL) | `m1/frontend`: `npx playwright test` | **3 passed, 0 failed** |
@@ -42,15 +58,14 @@ cannot start in this VM — see §5); anything on a GitHub-hosted runner
 
 **Rules that are never relaxed for this procedure:**
 
-- No SQLite substitution for PostgreSQL-specific tests. The 70 live
-  tests (11 `*_live_pg.py` modules) only run against real PostgreSQL;
+- No SQLite substitution for PostgreSQL-specific tests. The 98 live
+  tests (14 `*_live_pg.py` modules) only run against real PostgreSQL;
   without `CL_LIVE_PG_PASSWORD` they skip, and the skip count is
   reported, never hidden.
 - No skipped test is removed, no assertion weakened, no test deleted
-  to make a count look better. The full suite is 316 tests
-  (`pytest --collect-only`); 246 are SQLite-runnable, 70 are live-only
-  (65 gated on `CL_LIVE_PG_PASSWORD` alone, 5 in
-  `test_runtime_role_live_pg.py` additionally gated on
+  to make a count look better. The full suite is 386 tests
+  (`pytest --collect-only`); 288 are SQLite-runnable, 98 are live-only
+  (5 in `test_runtime_role_live_pg.py` additionally gated on
   `CL_LIVE_PG_ROLE=courierledger_runtime`).
 - Synthetic data only. No real merchant data, no invented courier
   rates or evidence, no V2.2.1 financial-rule change.
@@ -171,6 +186,20 @@ for db in courierledger_app courierledger_dev; do
 done
 rm -f /tmp/roles.sql
 
+# FRESH-CLUSTER ORDERING TRAP (proven 2026-11-01, Phase 1.1
+# re-verification): on a brand-new cluster the order above FAILS in
+# both directions — rls.sql first fails at `role
+# "courierledger_maintenance" does not exist` (rls.sql grants to the
+# roles that roles.sql creates), and roles.sql first fails at
+# `function public.app_current_merchant_id() does not exist`
+# (roles.sql references the functions rls.sql defines). The working
+# order on a fresh cluster is: create the NOLOGIN roles first
+# (`courierledger_migrator`, `courierledger_maintenance` — as the
+# postgres superuser, before Alembic), then Alembic, then rls.sql +
+# triggers.sql, then roles.sql, then seed. On a cluster that already
+# had a previous provisioning, the documented order works because
+# the roles and functions already exist.
+
 # Seed the 5 courier codes (idempotent; no rates or templates):
 for db in courierledger_app courierledger_dev; do
   PGPASSWORD='<password>' psql -h 127.0.0.1 -U courierledger -d "$db" \
@@ -184,7 +213,7 @@ Verify the provisioned state (either DB):
 PGPASSWORD='<password>' psql -h 127.0.0.1 -U courierledger -d courierledger_app -tAc \
   "SELECT count(*) FROM pg_tables WHERE schemaname='public';"   # 33 (32 tables + alembic_version)
 PGPASSWORD='<password>' psql -h 127.0.0.1 -U courierledger -d courierledger_app -tAc \
-  "SELECT version FROM alembic_version;"                          # 0002
+  "SELECT version_num FROM alembic_version;"                     # 0005 (was 0002 before Phase 1.1)
 PGPASSWORD='<password>' psql -h 127.0.0.1 -U courierledger -d courierledger_app -tAc \
   "SELECT count(*) FROM pg_policies;"                             # 46
 PGPASSWORD='<password>' psql -h 127.0.0.1 -U courierledger -d courierledger_app -tAc \
@@ -244,35 +273,37 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
 # Step 1 — SQLite suite; live modules skip (must stay green even if
-# live PostgreSQL breaks). Expected: 246 passed, 70 skipped, 0 failed.
+# live PostgreSQL breaks). Expected: 288 passed, 98 skipped, 0 failed.
 .venv/bin/python -m pytest tests/ -q
 
 # Step 2 — full suite with live PostgreSQL under the runtime role.
 # <password> is the same local-dev password as in §2 (from .env).
-# Expected: 316 passed, 0 skipped, 0 failed.
+# Expected: 386 passed, 0 skipped, 0 failed.
 CL_LIVE_PG_PASSWORD='<password>' CL_LIVE_PG_ROLE=courierledger_runtime \
   .venv/bin/python -m pytest tests/ -q
 ```
 
 What the numbers mean:
 
-- 316 total (`pytest --collect-only`). 246 run without PostgreSQL
+- 386 total (`pytest --collect-only`). 288 run without PostgreSQL
   (engine, CSV import, run store, settlement, members, settings,
   shipments, statements, reports, auth, SQL-content checks).
-- 70 live-only tests in 11 `*_live_pg.py` modules, each gated by a
+- 98 live-only tests in 14 `*_live_pg.py` modules, each gated by a
   module-level `pytestmark = pytest.mark.skipif(...)`:
-  - 65 gated on `CL_LIVE_PG_PASSWORD` only (scratch DB
+  - 93 gated on `CL_LIVE_PG_PASSWORD` only (scratch DB
     `courierledger_live_test`, Alembic, `rls.sql`/`triggers.sql`/
     `roles.sql`/seed, uvicorn on port 8001 — see
     `backend/tests/live_pg.py`). These prove RLS tenant isolation,
     the CL-01/CL-13/CL-16/CL-10 deferred triggers, the
     `clock_timestamp()` lease clock (including the decisive
     `pg_sleep(3)` test), the runtime role, CSV import, run store,
-    settlements, members, settings, shipments, workspaces.
+    settlements, members, settings, shipments, workspaces, plus the
+    Phase 1.1 role-scoped RLS, revoked-member session, step-up, and
+    audit-trail checks.
   - 5 in `test_runtime_role_live_pg.py`, additionally gated on
     `CL_LIVE_PG_ROLE=courierledger_runtime`.
 - Two tests in `test_m6a1_live_pg.py` are pure-engine checks and pass
-  even without a database; they are counted in the 70 but do not need
+  even without a database; they are counted in the 98 but do not need
   PostgreSQL.
 - Expected warnings only: Starlette/httpx deprecation warnings
   (~25). Any other warning or failure is real — report it exactly,
