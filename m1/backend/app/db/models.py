@@ -292,7 +292,17 @@ class CourierStatementTemplate(Base):
             name="fk_templates_courier",
         ),
         UniqueConstraint("courier_id", "version_no", name="uq_templates_courier_version"),
-        UniqueConstraint("id", name="uq_templates_id"),
+        # Phase 3: the redundant UniqueConstraint("id",
+        # name="uq_templates_id") that used to sit here is removed.
+        # "id" is the primary key, so uniqueness is already enforced.
+        # (The pre-rebuild live databases carried a primary key
+        # literally named "uq_templates_id"; no committed code
+        # produces that name — a fresh 0001 creates
+        # "courier_statement_templates_pkey" and no (id) unique, and
+        # the old model rendered a separate UNIQUE — so its
+        # provenance is pre-squash development history, not
+        # something to preserve. Removing the redundant declaration
+        # is metadata-only — no DDL, no migration.)
         CheckConstraint("version_no > 0", name="ck_templates_version_no"),
         CheckConstraint(_check_list("status", TEMPLATE_STATUSES), name="ck_templates_status"),
     )
@@ -662,7 +672,13 @@ class ImportBatch(Base):
     merchant_id: Mapped[uuid.UUID] = _merchant_id()
     file_object_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
     merchant_courier_account_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
-    template_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        # Phase 3: index=True declares the live 0006 index
+        # ix_import_batches_template_id in the metadata so autogenerate
+        # no longer reports it as a removal. Metadata-only; the index
+        # already exists in every migrated database.
+        Uuid, nullable=True, index=True
+    )
     template_version_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
     mapping_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="uploaded")

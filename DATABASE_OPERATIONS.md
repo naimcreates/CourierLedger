@@ -22,13 +22,13 @@ RPO/RTO), `INFRASTRUCTURE_DESIGN.md` (architecture + Docker),
 | Encoding / locale | UTF8 / C.UTF-8 on every database (required — see §2) |
 | Timezone | Etc/UTC (server); app stores TIMESTAMPTZ everywhere |
 | Databases | `courierledger_app` (working), `courierledger_dev` (working), `postgres` (system) |
-| Alembic head | **0006** (Phase 2: 0006 adds 3 FK indexes; was 0005 after Phase 1.1) |
+| Alembic head | **0007** (Phase 3: 0007 adds `uq_memberships_merchant_id`; was 0006 after Phase 2) |
 | Tables | 33 per database (32 + `alembic_version`) |
 | RLS policies | 46 per database |
 | Functions | 15 (4 context helpers + `create_workspace` + 10 `fn_*` trigger functions) |
 | Triggers | 22 (17 `CREATE TRIGGER` + 5 deferred `CONSTRAINT TRIGGER`: CL-01/CL-13/CL-16/CL-10) |
-| Indexes | 132 per database (129 before migration 0006) |
-| Constraints | 264 per database (public-schema `pg_constraint`: 94 CHECK, 85 FK, 33 PK, 5 trigger, 47 UNIQUE) |
+| Indexes | 133 per database (132 before migration 0007) |
+| Constraints | 265 per database (public-schema `pg_constraint`: 94 CHECK, 85 FK, 33 PK, 5 trigger, 48 UNIQUE) |
 | RLS | Enabled on 26 tables; **FORCE on 24**; NO FORCE on `merchants` + `merchant_memberships` only (B-1 design) |
 | Seed | 5 courier codes (`couriers`) |
 | Rows (app DB) | 244 (synthetic dev data only) |
@@ -56,37 +56,71 @@ FROM pg_database WHERE datistemplate = false;
 | `postgres` | yes | yes | yes | `postgres` DB | superuser |
 | `courierledger` | yes | no | no | both app DBs + all 33 tables in each | owner |
 | `courierledger_runtime` | yes | no | **no** | nothing | 74 privilege rows; SELECT/INSERT/UPDATE per `roles.sql`; **0 DELETE**; column UPDATE only on `reconciliation_runs(status, completed_at)` |
-| `courierledger_migrator` | **no** | no | no | nothing | **0 grants** — exists but unused (see §3.1) |
-| `courierledger_maintenance` | **no** | no | no | nothing | SELECT on all 33 tables; DELETE only on `idempotency_keys`; narrow UPDATEs; no financial-history mutation |
+| `courierledger_migrator` | **no** | no | no | nothing | **0 grants** — reserved, not in service (see §3.1); **no password verifier** (Phase 3, see §3.2) |
+| `courierledger_maintenance` | **no** | no | no | nothing | SELECT on all 33 tables; DELETE only on `idempotency_keys`; narrow UPDATEs; no financial-history mutation; **no password verifier** (Phase 3, see §3.2) |
 
-### 3.1 The migrator question (open decision, not silently resolved)
+### 3.1 The migrator question — DECIDED Phase 3 (2026-11-02): Option 2
 
-The design says `courierledger_migrator` owns the schema and runs
-Alembic. Live reality: it owns 0 objects and holds 0 grants; live
-migrations run as `courierledger` (the LOGIN owner). Two options,
-neither applied yet:
+The design once said `courierledger_migrator` owns the schema and
+runs Alembic. Live reality, verified: it owns 0 objects and holds
+0 grants; live migrations run as `courierledger` (the LOGIN
+owner). **Decided: keep it that way — Option 2. `courierledger`
+is the live migrator; `courierledger_migrator` stays reserved
+(NOLOGIN, no password verifier, no grants).** Full evaluation
+in `app/db/roles.sql` (header) and `MIGRATION_VERIFICATION.md`
+§5; the short version:
 
-- **Option 1 (preferred for production):** put the migrator into
-  service — `REASSIGN OWNED BY courierledger TO
-  courierledger_migrator;` per database, then use it (LOGIN, vault
-  password) as `MIGRATION_DATABASE_URL`.
-- **Option 2:** document the status quo in `roles.sql` (already
-  partially done in Phase 2: the header now states the live reality)
-  and keep `courierledger` as the live migrator.
+- Every stated requirement is already met by `courierledger` as
+  migrator: runtime holds no migration privilege, owns nothing,
+  cannot BYPASSRLS; FORCE RLS stays enabled (24 tables);
+  migration privilege is sufficient (owner); maintenance stays
+  restricted; no app connection uses a superuser.
+- Option 1 (REASSIGN OWNED to the migrator) would add a second
+  LOGIN credential to store/rotate (vault, `.env`, CI secret)
+  and force REASSIGN OWNED on every database plus changes to the
+  provisioning script, the live-test harness and both CI
+  workflows, while buying no live risk reduction on this
+  single-VM local-dev setup, where all credentials already live
+  in one gitignored `.env` held by one person. The operative
+  boundary — app connects as runtime, migrations run as owner —
+  is enforced by configuration (`DATABASE_URL` names the runtime
+  role; `alembic/env.py` reads `MIGRATION_DATABASE_URL` only)
+  and is proven by the Phase 3 live tests, not by the role's
+  name.
+- The reserved role is the hook for a future production split:
+  that split is a deployment change (fresh vault password +
+  `MIGRATION_DATABASE_URL` + REASSIGN OWNED), needs no schema
+  change, and must set a fresh password at the time — never a
+  value that was nulled under §3.2. Revisit when a production
+  host with a real vault exists.
 
-Until one is chosen, `roles.sql` is a specification of the intended
+Until then, `roles.sql` is the specification of the intended
 posture plus the live grants, and the migrator role is reserved.
 
-### 3.2 NOLOGIN-role passwords (observation, not an active hole)
+### 3.2 NOLOGIN-role passwords — DECIDED Phase 3: nulled (and a correction)
 
-`courierledger_migrator` and `courierledger_maintenance` both carry
-password verifiers despite NOLOGIN. NOLOGIN blocks login today, so
-this is not an active hole — but flipping LOGIN would make a stored
-password live immediately. Either null them (`ALTER ROLE ...
-PASSWORD NULL`) if break-glass goes through the superuser, or record
-them in `PRODUCTION_SECRETS_GUIDE.md` as the break-glass credential
-with rotation discipline. Do not flip LOGIN on either role without a
-reviewed change. Recorded in `roles.sql` (Phase 2 note 4).
+`courierledger_migrator` and `courierledger_maintenance` are set
+`PASSWORD NULL` by `roles.sql` on every application (verified
+live in `pg_authid` after the Phase 3 application: both NULL;
+the two LOGIN roles hold SCRAM verifiers). Break-glass access
+goes through the postgres superuser (`su postgres`), which can
+SET ROLE or grant LOGIN temporarily under a reviewed change; no
+standing password exists to leak, rotate, or forget. Do not set
+a password on either role and do not flip LOGIN on either role
+without a reviewed change.
+
+**Correction to the Phase 2 record:** Phase 2 said both roles
+"carry password verifiers despite NOLOGIN (verified live)".
+That check used `pg_roles`, whose `rolpassword` column is a
+constant `'********'` mask for every role (verified live
+2026-11-02 from the view definition) — it cannot distinguish
+"has a verifier" from "has none". The correct source is
+`pg_authid` (superuser-only). Whether the pre-Phase-3 verifiers
+existed cannot be established retroactively (the nulling
+already ran); it is recorded as unknown, not asserted either
+way. The check to use from now on is
+`SELECT rolname, rolpassword IS NULL FROM pg_authid WHERE
+rolname LIKE 'courierledger%';` as the postgres superuser.
 
 ### 3.3 Default privileges
 
@@ -97,8 +131,8 @@ checklist for every future migration.
 
 ### 3.4 Negative probes (live, as `courierledger_runtime`)
 
-All behaved as designed (Phase 2, rolled-back transaction, row
-counts re-verified unchanged afterwards):
+Phase 2 probes (rolled-back transaction, row counts re-verified
+unchanged afterwards):
 
 | Probe | Outcome |
 |---|---|
@@ -111,6 +145,37 @@ counts re-verified unchanged afterwards):
 | UPDATE non-granted column of `reconciliation_runs` | ERROR 42501 |
 | UPDATE granted columns (`status`) with no matching row | OK, 0 rows |
 | `SELECT count(*) FROM users` | 4 (identity tables readable by design, no RLS — v0.1 C.1) |
+
+Phase 3 probes (Workstream 2; re-run on the rebuilt cluster
+2026-11-02, pinned by
+`tests/test_migration_phase3_live_pg.py`):
+
+| Probe | Outcome |
+|---|---|
+| `CREATE TABLE` as runtime | ERROR 42501 (permission denied for schema public) |
+| `ALTER TABLE merchants ADD COLUMN` as runtime | ERROR 42501 (must be owner) |
+| `DROP TABLE merchants` as runtime | ERROR 42501 (must be owner) |
+| `DELETE FROM idempotency_keys` as runtime | ERROR 42501 (permission denied) |
+| `ALTER TABLE merchants DISABLE ROW LEVEL SECURITY` as runtime | ERROR 42501 (must be owner) |
+| `GRANT DELETE ON merchants TO courierledger_runtime` + `REVOKE SELECT …` as runtime | No error, no change — PostgreSQL answers a non-owner GRANT/REVOKE with a WARNING and leaves the ACL untouched; runtime privilege rows 74 → 74, still no grant option |
+| Login as `courierledger_migrator` / `courierledger_maintenance` | `FATAL: password authentication failed` (NOLOGIN, no verifier) |
+| `current_user` / `rolbypassrls` as runtime | `courierledger_runtime`, false |
+
+### 3.5 Local-dev password rotation (Phase 3, 2026-11-02)
+
+During the container-replacement rebuild, a helper echoed a
+prefix of the then-current shared local-dev DB password into a
+tool log. The password was rotated the same day: both LOGIN
+roles (`courierledger`, `courierledger_runtime`) now carry a
+fresh random value, stored only in gitignored
+`m1/backend/.env` (`DATABASE_URL`); the old value no longer
+authenticates either role. **Consequence for the coordinator:**
+live-test runs must read the password from `.env` at runtime
+(`CL_LIVE_PG_PASSWORD`); the `CI_POSTGRES_PASSWORD` repo secret
+still holds the old value and must be updated if CI is ever
+unblocked. This rotation is local-dev only — no production
+credential was ever involved, and the NOLOGIN roles hold no
+password at all (§3.2).
 
 ## 4. Connection pooling
 
@@ -179,14 +244,19 @@ NOLOGIN roles are pre-created before `rls.sql` runs).
 - **No `pg_stat_statements`** (available, not installed; needs a
   restart + `CREATE EXTENSION`). Slow-query visibility is
   documentation-only until then.
-- **No scheduler** for `purge_expired_auth_rows` — and the name is
+- **Scheduler for `purge_expired_auth_rows` (Phase 3):** systemd timers now
+  invoke it — `courierledger-maintenance.timer` (hourly) via
+  `m1/scripts/maintenance.py`, plus `courierledger-backup.timer` (daily
+  02:30 UTC) for encrypted backups; see `DATABASE_BACKUP_RECOVERY.md`
+  and `m1/scripts/systemd/README.md`. Note the name is still
   misleading: it is an **app-side Python function**
-  (`auth_service.py`), not a database procedure, and nothing invokes
-  it on a schedule. (Phase 1.1 docs called it a procedure; corrected
-  here.)
-- **No drift gate:** `alembic check` fails (exit 255, 17–18 ops) on a
-  correctly migrated database — all representation drift, no missing
-  tables/columns. See `MIGRATION_VERIFICATION.md`.
+  (`auth_service.py`), not a database procedure (Phase 1.1 docs called
+  it a procedure; corrected in Phase 2).
+- **Drift gate (Phase 3):** `alembic check` still exits 255 by design,
+  but the residual is now a pinned allow-list of **13 ops** (12 FK
+  representation differences + 1 RLS-layer index) — the one genuine
+  mismatch was fixed by migration 0007. See
+  `MIGRATION_VERIFICATION.md` §3.
 - **Downgrades:** all five revisions have downgrades, but only the
   0002 downgrade has ever been proven, and it can fail on data
   containing a specific row shape (S non-NULL, V_R NULL, V_cond
@@ -198,7 +268,7 @@ NOLOGIN roles are pre-created before `rls.sql` runs).
 ```bash
 # 1. Cluster up, UTF8, version
 pg_lsclusters; psql -d courierledger_app -tAc "SELECT version();"
-# 2. Migration head + object counts (expect 0006 / 33 / 46 / 15 / 22 / 5 couriers)
+# 2. Migration head + object counts (expect 0007 / 33 / 46 / 15 / 22 / 5 couriers)
 cd m1/backend && MIGRATION_DATABASE_URL="<owner-url>" .venv/bin/alembic current
 # 3. Role timeouts present
 psql -d postgres -tAc "SELECT rolname, rolconfig FROM pg_roles WHERE rolname LIKE 'courierledger%';"

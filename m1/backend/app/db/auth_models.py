@@ -42,6 +42,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    MetaData,
     String,
     Text,
     UniqueConstraint,
@@ -54,8 +55,34 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# Phase 3 (Workstream 3) — naming convention for constraints the models
+# declare WITHOUT an explicit name. PostgreSQL auto-names such
+# constraints when migration 0001 created them (``<table>_<column>_key``
+# for UNIQUE, ``<table>_<column>_fkey`` for FOREIGN KEY,
+# ``ix_<table>_<column>`` for indexes, ``<table>_pkey`` for PRIMARY
+# KEY); the convention below reproduces exactly those auto-names in
+# the metadata, so ``alembic check`` (autogenerate) can pair the
+# metadata constraint with the live one instead of reporting a
+# spurious add/remove. It changes NO database object: every name it
+# produces was verified live against pg_constraint / pg_indexes on
+# courierledger_app before it was adopted (see
+# MIGRATION_VERIFICATION.md §3). Explicitly named constraints
+# (every __table_args__ entry, every named Index) are untouched by a
+# convention.
+NAMING_CONVENTION = {
+    "ix": "ix_%(table_name)s_%(column_0_name)s",
+    "uq": "%(table_name)s_%(column_0_name)s_key",
+    "fk": "%(table_name)s_%(column_0_name)s_fkey",
+    "pk": "%(table_name)s_pkey",
+}
+# NOTE: no "ck" entry on purpose — every CHECK constraint in the
+# models is explicitly named (ck_*), so a convention would never
+# apply; leaving it out keeps an accidentally unnamed CHECK visibly
+# unnamed instead of silently misnamed.
+
+
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 class User(Base):
@@ -76,6 +103,15 @@ class User(Base):
     __table_args__ = (
         CheckConstraint("status IN ('active','invited','suspended','closed')", name="ck_users_status"),
         CheckConstraint("email LIKE '%@%'", name="ck_users_email_has_at"),
+        # Phase 3: explicit unique constraint named exactly as migration
+        # 0001's PostgreSQL auto-name (users_email_key). The column's
+        # unique=True + index=True collapses in SQLAlchemy metadata to
+        # a unique INDEX only, so without this the metadata under-
+        # declares the live schema and autogenerate reports the live
+        # constraint as "removed". The DB already has both the
+        # constraint and the unique index ix_users_email; this only
+        # makes the model say so. Metadata-only, no DDL.
+        UniqueConstraint("email", name="users_email_key"),
     )
 
 
@@ -152,7 +188,13 @@ class UserSession(Base):
     __tablename__ = "user_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        # Phase 3: index=True declares the live 0006 index
+        # ix_user_sessions_user_id in the metadata so autogenerate no
+        # longer reports it as a removal. Metadata-only; the index
+        # already exists in every migrated database.
+        Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -167,6 +209,15 @@ class UserSession(Base):
         DateTime(timezone=True), nullable=False, default=_utcnow
     )
 
+    __table_args__ = (
+        # Phase 3: see User.email — the live unique constraint
+        # (migration 0001 auto-name user_sessions_token_hash_key)
+        # declared explicitly so autogenerate can pair it. The column's
+        # unique=True + index=True already declares the unique index
+        # ix_user_sessions_token_hash. Metadata-only, no DDL.
+        UniqueConstraint("token_hash", name="user_sessions_token_hash_key"),
+    )
+
 
 class PasswordResetToken(Base):
     """Hashed one-time password-reset token. Single use, 1h expiry."""
@@ -174,10 +225,24 @@ class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        # Phase 3: index=True declares the live 0006 index
+        # ix_password_reset_tokens_user_id in the metadata so
+        # autogenerate no longer reports it as a removal.
+        # Metadata-only; the index already exists.
+        Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+
+    __table_args__ = (
+        # Phase 3: see User.email — the live unique constraint
+        # (migration 0001 auto-name
+        # password_reset_tokens_token_hash_key) declared explicitly so
+        # autogenerate can pair it. Metadata-only, no DDL.
+        UniqueConstraint("token_hash", name="password_reset_tokens_token_hash_key"),
     )

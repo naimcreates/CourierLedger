@@ -10,9 +10,12 @@
 #   1. create the NOLOGIN roles (inline DO block — roles.sql itself
 #      cannot run first: it fails on the missing
 #      app_current_merchant_id() function)
-#   2. Alembic upgrade head (owner role)
+#   2. Alembic upgrade head (live migrator role: courierledger — the
+#      LOGIN owner. Phase 3 decision: courierledger_migrator stays
+#      reserved/NOLOGIN; see app/db/roles.sql header)
 #   3. rls.sql + triggers.sql (owner role)
-#   4. roles.sql (postgres superuser)
+#   4. roles.sql (postgres superuser — also nulls the password
+#      verifiers on the two NOLOGIN roles; Phase 3 decision)
 #   5. runtime-role password (roles.sql deliberately sets none)
 #   6. seed_couriers.sql (owner role)
 #   7. verification: alembic head, object counts, seed rows
@@ -59,7 +62,16 @@ psql_super() {
   su postgres -c "psql -v ON_ERROR_STOP=1 $(printf '%q ' "$@")"
 }
 
-# 1. Database + NOLOGIN roles first.
+# 1. Database + roles first. The NOLOGIN roles AND the runtime role
+# must exist before rls.sql runs: rls.sql grants EXECUTE on the
+# context helpers to courierledger_runtime (line ~186) and to
+# courierledger_maintenance, so on a brand-new cluster rls.sql
+# fails with `role "courierledger_runtime" does not exist` if the
+# runtime role is only created later by roles.sql (Phase 3, found
+# live on a fresh cluster after a container replacement). The
+# runtime role is created here LOGIN NOBYPASSRLS but WITHOUT a
+# password (it cannot authenticate until step 5 sets one from
+# .env); roles.sql (step 4) re-asserts the role idempotently.
 if ! psql_super -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB'" | grep -qx 1; then
   psql_super -d postgres -c "CREATE DATABASE $DB OWNER courierledger;"
 fi
@@ -72,11 +84,15 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'courierledger_maintenance') THEN
     CREATE ROLE courierledger_maintenance NOLOGIN;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'courierledger_runtime') THEN
+    CREATE ROLE courierledger_runtime LOGIN NOBYPASSRLS;
+  END IF;
 END
 $$;
 EOSQL
 
-# 2. Alembic as the owner role. Alembic resolves its script location
+# 2. Alembic as the live migrator role (courierledger, the LOGIN
+# owner). Alembic resolves its script location
 # relative to the working directory, so run it from m1/backend.
 (
   cd "$BACKEND"
@@ -112,7 +128,7 @@ psql_super -d postgres -c "ALTER ROLE courierledger_runtime WITH PASSWORD '$RUNT
 # 6. Seed the 5 courier codes (idempotent; no rates/templates).
 psql -h 127.0.0.1 -U courierledger -d "$DB" -v ON_ERROR_STOP=1 -f "$BACKEND/app/db/seed_couriers.sql"
 
-# 7. Verification (expected: 0006, 33 tables, 46 policies, 15
+# 7. Verification (expected: 0007, 33 tables, 46 policies, 15
 #    functions, 22 triggers, 5 couriers).
 echo "--- verification: $DB ---"
 (

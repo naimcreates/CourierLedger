@@ -154,3 +154,31 @@ def test_roles_sql_contains_three_roles_and_narrow_grants():
     assert "UPDATE (status, completed_at)" in text  # runs: narrow grant only
     assert "DELETE ON public.idempotency_keys TO courierledger_maintenance" in text
     assert "clock_timestamp()" in text  # CL-19/CL-24 predicates use it
+
+
+def test_roles_sql_nulls_nologin_role_passwords_phase3():
+    """Phase 3 (Workstream 2, Option 2): the two NOLOGIN roles must
+    carry no password verifier — roles.sql nulls both on every
+    application. The live check (pg_authid) is in
+    test_migration_phase3_live_pg.py; this pins the file."""
+    text = (DB_DIR / "roles.sql").read_text()
+    assert "ALTER ROLE courierledger_migrator PASSWORD NULL;" in text
+    assert "ALTER ROLE courierledger_maintenance PASSWORD NULL;" in text
+    # The decided model is recorded in the file, not just implied:
+    # courierledger is the live migrator; the migrator role is reserved.
+    assert "LIVE migrator is `courierledger`" in text
+
+
+def test_app_default_connection_is_runtime_role_not_owner():
+    """The application must never connect as the owner/migrator: the
+    default DATABASE_URL names the runtime role, and only
+    alembic/env.py reads MIGRATION_DATABASE_URL."""
+    config_text = (BACKEND_DIR / "app" / "config.py").read_text()
+    assert "courierledger_runtime:CHANGE_ME" in config_text
+    assert "courierledger:CHANGE_ME" not in config_text
+    env_text = (BACKEND_DIR / "alembic" / "env.py").read_text()
+    assert "MIGRATION_DATABASE_URL" in env_text
+    # config.py mentions MIGRATION_DATABASE_URL exactly once, in the
+    # comment pointing at alembic/env.py — the app reads no such
+    # setting (a second occurrence would mean a new code path).
+    assert config_text.count("MIGRATION_DATABASE_URL") == 1

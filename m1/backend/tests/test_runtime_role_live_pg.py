@@ -186,8 +186,9 @@ def test_alembic_uses_migration_database_url(live):
         timeout=120,
     )
     assert proc.returncode == 0, proc.stderr
-    # Phase 2: the head revision is 0006 (missing FK indexes), not
-    # 0005 -- this assertion names the current head, and must move
-    # with the next migration. The behaviour under test (Alembic
-    # reads MIGRATION_DATABASE_URL, not DATABASE_URL) is unchanged.
-    assert "0006 (head)" in proc.stdout, proc.stdout
+    # Phase 3: the head revision is 0007 (missing membership unique
+    # constraint), not 0006 -- this assertion names the current head,
+    # and must move with the next migration. The behaviour under test
+    # (Alembic reads MIGRATION_DATABASE_URL, not DATABASE_URL) is
+    # unchanged.
+    assert "0007 (head)" in proc.stdout, proc.stdout

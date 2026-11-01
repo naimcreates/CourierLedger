@@ -7,7 +7,7 @@ Run ONLY with the runtime role:
 
 Proves, live (against the scratch DB the fixture provisions with
 `alembic upgrade head` + rls.sql + triggers.sql + roles.sql + seed):
-- Migration 0006 applied: alembic head is 0006 and the three
+- Migration 0007 applied: alembic head is 0007 and the three
   Phase 2 FK indexes exist (user_sessions.user_id,
   password_reset_tokens.user_id, import_batches.template_id).
 - Per-role timeouts are set (Phase 2): the runtime role carries
@@ -56,10 +56,10 @@ def _owner_conn():
     )
 
 
-def test_migration_head_is_0006(live):
+def test_migration_head_is_0007(live):
     with _owner_conn() as conn:
         version = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
-    assert version == "0006"
+    assert version == "0007"
 
 
 def test_phase2_fk_indexes_exist(live):

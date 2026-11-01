@@ -11,16 +11,37 @@
 -- "Role-enforced vs documented-only" below.
 --
 -- Roles (v0.1 E, CL-03, CL-04, CL-11, CL-12, CL-14, CL-15, CL-19):
---   courierledger_migrator    -- owns the schema and all objects in the
---     DESIGN; runs Alembic migrations, applies rls.sql / triggers.sql /
---     roles.sql. NOLOGIN in production use (migrations run from a
---     controlled host with a separate credential).
---     LIVE REALITY (Phase 2, verified 2026-11-01): the migrator role
---     exists but owns 0 objects and holds 0 grants; live migrations
---     run as `courierledger` (the LOGIN owner role that owns all 33
---     tables). Either put the migrator into service (REASSIGN OWNED
---     + use it for Alembic) or keep `courierledger` as the live
---     migrator — do not assume this file's design sentence is live.
+--   courierledger_migrator    -- RESERVED, NOT IN SERVICE (Phase 3
+--     decision, 2026-11-02 — Option 2, see below). The design once
+--     said this role owns the schema and runs Alembic; live reality
+--     is that it owns 0 objects, holds 0 grants, and never runs a
+--     migration. The LIVE migrator is `courierledger` (the LOGIN
+--     owner role): it owns the databases and all 33 tables in each,
+--     is not a superuser, cannot BYPASSRLS, and is the role
+--     MIGRATION_DATABASE_URL names. The migrator role is kept
+--     NOLOGIN with NO password verifier (nulled below) so it cannot
+--     be logged into even by accident; it is reserved for a future
+--     production split (separate migration credential) if the
+--     founder ever wants one — that split is a deployment change
+--     (new vault password + MIGRATION_DATABASE_URL + REASSIGN OWNED),
+--     not a redesign, and it needs no schema change.
+--     WHY Option 2 over Option 1 (REASSIGN OWNED to the migrator):
+--     every stated requirement is already met by `courierledger` as
+--     migrator — runtime holds no migration privilege, owns nothing,
+--     cannot BYPASSRLS; FORCE RLS stays enabled; migration privilege
+--     is sufficient (owner); maintenance stays restricted; no app
+--     connection uses a superuser. Option 1 would add a second
+--     LOGIN credential to store/rotate (vault, .env, CI secret) and
+--     force REASSIGN OWNED on every database plus changes to the
+--     provisioning script, the live-test harness and both CI
+--     workflows, while buying no live risk reduction on this
+--     single-VM local-dev setup, where all credentials already live
+--     in one gitignored .env held by one person. The operative
+--     boundary — app connects as runtime, migrations run as owner —
+--     is enforced by configuration (DATABASE_URL names the runtime
+--     role; alembic/env.py reads MIGRATION_DATABASE_URL only) and
+--     is proven by the Phase 3 live tests, not by the role's name.
+--     Revisit if/when a production host with a real vault exists.
 --   courierledger_runtime     -- the ONLY role the application uses at
 --     runtime. Non-owner, non-superuser, NOBYPASSRLS (explicit). FORCE
 --     RLS applies to it (and to the owner) on every tenant table.
@@ -46,8 +67,13 @@
 --       idempotency_keys (purge) and UPDATE merchants/users for Stage 2.
 --   Documented-only (NOT enforced by this file, needs deployment work):
 --     * that the application actually connects as courierledger_runtime
---       (today it connects with whatever DATABASE_URL says);
---     * that migrations actually connect as courierledger_migrator;
+--       (today it connects with whatever DATABASE_URL says — in this
+--       repo DATABASE_URL names the runtime role, and the app never
+--       reads MIGRATION_DATABASE_URL; see app/config.py);
+--     * that migrations actually connect as `courierledger`, the live
+--       migrator (MIGRATION_DATABASE_URL names it; alembic/env.py
+--       reads that variable and never the runtime URL). The reserved
+--       courierledger_migrator role plays no part in this.
 --     * that no pooled connection ever carries a previous tenant's
 --       context (transaction-local set_config + pool reset is an
 --       application/pooler duty, CL-11/T-06);
@@ -88,6 +114,35 @@ ALTER ROLE courierledger_runtime NOBYPASSRLS;
 ALTER ROLE courierledger_maintenance NOBYPASSRLS;
 ALTER ROLE courierledger_migrator NOBYPASSRLS;
 
+-- NOLOGIN-role password verifiers (Phase 3 decision, 2026-11-02):
+-- courierledger_migrator and courierledger_maintenance were
+-- RECORDED in Phase 2 as carrying password verifiers despite
+-- NOLOGIN — but that record rested on pg_roles, whose rolpassword
+-- column is a constant '********' mask for every role (verified
+-- live 2026-11-02 from the pg_roles view definition); it cannot
+-- distinguish "has a verifier" from "has none". The correct source
+-- is pg_authid (superuser-only). Whatever was there before, this
+-- file now makes the state deterministic: both roles are set
+-- PASSWORD NULL on every application (verified live in pg_authid
+-- after the Phase 3 application). NOLOGIN blocked login either
+-- way, so this was not an active hole — but a stored verifier
+-- would have gone live the moment LOGIN was ever flipped, and the
+-- plaintext behind any earlier verifier is not recorded anywhere
+-- (the current provisioning scripts create both roles WITHOUT a
+-- password). DECIDED: null them. Break-glass access to either role
+-- goes through the postgres superuser (su postgres), which can SET
+-- ROLE or grant LOGIN temporarily under a reviewed change; no
+-- standing password exists to leak, rotate, or forget. This
+-- statement is idempotent and runs on every provisioning
+-- (roles.sql is applied by a superuser); a future production split
+-- that puts the migrator into service MUST set a fresh vault
+-- password at that point — never re-use a value that was nulled
+-- here. If either ALTER below ever fails, provisioning fails
+-- loudly (ON_ERROR_STOP=1); do not work around it by giving the
+-- role a password.
+ALTER ROLE courierledger_migrator PASSWORD NULL;
+ALTER ROLE courierledger_maintenance PASSWORD NULL;
+
 -- ---------------------------------------------------------------------------
 -- Schema posture. PostgreSQL 15+ already revokes CREATE on public from
 -- PUBLIC; the REVOKE below states the intended posture explicitly for
@@ -95,8 +150,10 @@ ALTER ROLE courierledger_migrator NOBYPASSRLS;
 -- ---------------------------------------------------------------------------
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO courierledger_runtime, courierledger_maintenance;
--- The migrator owns the schema objects; ownership is set at creation
--- time by running migrations as the migrator role.
+-- The owner role (`courierledger`, the live migrator) owns the schema
+-- objects; ownership is set at creation time by running migrations as
+-- that role. The reserved courierledger_migrator role holds no grants
+-- and owns nothing (Phase 3 decision, see header).
 
 -- ---------------------------------------------------------------------------
 -- Global reference tables: read-only for the runtime role (v0.1 C.2).
@@ -314,13 +371,17 @@ ALTER ROLE courierledger_maintenance SET lock_timeout = '30s';
 -- 3. Until the application is configured with separate DATABASE_URLs
 --    per role, these grants are a specification, not live enforcement
 --    (see "Role-enforced vs documented-only" in the header).
--- 4. NOLOGIN-role passwords: courierledger_migrator and
---    courierledger_maintenance both carry password verifiers despite
---    NOLOGIN (verified live, Phase 2). NOLOGIN blocks login today, so
---    this is not an active hole — but flipping LOGIN would make a
---    stored password live immediately. Either null them
---    (ALTER ROLE ... PASSWORD NULL) if break-glass goes through the
---    superuser, or record them in PRODUCTION_SECRETS_GUIDE.md as the
---    break-glass credential with rotation discipline. Do not flip
---    LOGIN on either role without a reviewed change.
+-- 4. NOLOGIN-role passwords: DECIDED Phase 3 (2026-11-02) — nulled.
+--    Phase 2 recorded both roles as carrying password verifiers,
+--    but that record rested on pg_roles, whose rolpassword column
+--    is a constant '********' mask for every role and cannot
+--    distinguish "has a verifier" from "has none" (verified live
+--    2026-11-02 from the view definition). The correct source is
+--    pg_authid (superuser-only); both roles are now PASSWORD NULL
+--    there, verified live. Break-glass goes through the postgres
+--    superuser. Do not set a password on either role and do not
+--    flip LOGIN on either role without a reviewed change. The one
+--    exception is a future production split that puts the migrator
+--    into service (see header): that change sets a FRESH vault
+--    password at the time, never a value that was nulled here.
 -- ============================================================================
