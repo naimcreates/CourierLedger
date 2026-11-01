@@ -24,6 +24,8 @@ Notes:
 """
 
 import os
+import re
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -36,7 +38,7 @@ from app.config import settings
 from app.db import models  # noqa: F401  (registers all 31/32 tables on shared Base)
 from app.db.auth_models import Base
 from app.db.session import engine
-from app.logging_config import configure_logging, get_logger
+from app.logging_config import configure_logging, get_logger, request_id_var
 
 configure_logging(settings.log_level)
 logger = get_logger(__name__)
@@ -99,6 +101,47 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-CSRF-Token", "Idempotency-Key"],
 )
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    """Phase 2 (Part 8): one correlation id per request.
+
+    A client-supplied X-Request-ID is echoed back only when it is
+    short (<= 128 chars) and contains only safe characters — an
+    arbitrary header value must never reach the logs unfiltered
+    (log-injection / CRLF risk). Anything else gets a fresh UUID4.
+    The id is returned in the X-Request-ID response header, stored
+    in a contextvar so the JSON logger attaches it to every log
+    line for this request, and reset afterwards so it cannot leak
+    into a later request handled on the same thread/task.
+    Registered before the security-headers middleware in source,
+    so it runs after it (Starlette runs the most recently added
+    middleware outermost) — that order does not matter here: the id
+    is set before any route handler runs, which is what the logging
+    needs, and the header is added to the response on the way out.
+    """
+    supplied = request.headers.get("x-request-id")
+    if supplied and len(supplied) <= 128 and re.fullmatch(r"[A-Za-z0-9._-]+", supplied):
+        request_id = supplied
+    else:
+        request_id = str(uuid.uuid4())
+    token = request_id_var.set(request_id)
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        logger.info(
+            "request_completed",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": str(request.url.path),
+                "status_code": response.status_code,
+            },
+        )
+        return response
+    finally:
+        request_id_var.reset(token)
 
 
 @app.middleware("http")

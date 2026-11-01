@@ -88,13 +88,17 @@ from app.db.models import (
 )
 from app.db.session import set_tenant_context
 from app.logging_config import get_logger
-from app.services import audit_service, idempotency_service
+from app.services import audit_service, idempotency_service, storage
+from app.services.storage import get_storage_backend
 from app.services.workspace_service import get_membership
 
 logger = get_logger(__name__)
 
 # Where uploaded bytes live in local dev (object-storage stand-in).
-# Resolved relative to this file's backend/ directory.
+# Resolved relative to this file's backend/ directory. The storage
+# backend (app/services/storage.py) owns the layout; this constant
+# stays as the configurable root (tests monkeypatch it) and must
+# match storage.DEFAULT_STORAGE_ROOT.
 VAR_IMPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "var" / "imports"
 
 MAX_ROWS_RETURNED = 500  # detail endpoint cap (see api/imports.py)
@@ -322,10 +326,18 @@ def _find_or_create_file_object(
     ).scalar_one_or_none()
     if existing is not None:
         return existing
-    storage_key = f"local://{merchant_id}/{file_sha256}.csv"
-    target = VAR_IMPORTS_DIR / str(merchant_id) / f"{file_sha256}.csv"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)  # content-addressed; an identical re-upload rewrites identical bytes
+    # Phase 2 (Part 7): bytes go through the storage backend, not a
+    # direct filesystem write — same local layout and key format as
+    # before, so existing stored files stay addressable. The backend
+    # enforces the size cap and verifies the hash; the content type
+    # is stored normalised (see _normalise_content_type).
+    backend = get_storage_backend(root=VAR_IMPORTS_DIR)
+    storage_key = backend.store(
+        merchant_id,
+        sha256=file_sha256,
+        data=data,
+        content_type=_normalise_content_type(content_type),
+    )
     file_object = FileObject(
         merchant_id=merchant_id,
         storage_key=storage_key,

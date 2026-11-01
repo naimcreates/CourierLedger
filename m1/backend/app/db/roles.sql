@@ -11,11 +11,16 @@
 -- "Role-enforced vs documented-only" below.
 --
 -- Roles (v0.1 E, CL-03, CL-04, CL-11, CL-12, CL-14, CL-15, CL-19):
---   courierledger_migrator    -- owns the schema and all objects; runs
---     Alembic migrations, applies rls.sql / triggers.sql / roles.sql.
---     NOLOGIN in production use (migrations run from a controlled host
---     with a separate credential); LOGIN here only where the local
---     setup needs it -- see the note at the end of this file.
+--   courierledger_migrator    -- owns the schema and all objects in the
+--     DESIGN; runs Alembic migrations, applies rls.sql / triggers.sql /
+--     roles.sql. NOLOGIN in production use (migrations run from a
+--     controlled host with a separate credential).
+--     LIVE REALITY (Phase 2, verified 2026-11-01): the migrator role
+--     exists but owns 0 objects and holds 0 grants; live migrations
+--     run as `courierledger` (the LOGIN owner role that owns all 33
+--     tables). Either put the migrator into service (REASSIGN OWNED
+--     + use it for Alembic) or keep `courierledger` as the live
+--     migrator — do not assume this file's design sentence is live.
 --   courierledger_runtime     -- the ONLY role the application uses at
 --     runtime. Non-owner, non-superuser, NOBYPASSRLS (explicit). FORCE
 --     RLS applies to it (and to the owner) on every tenant table.
@@ -23,6 +28,13 @@
 --     idempotency purge, sweeper transitions, workspace Stage 2
 --     anonymisation, anonymised exports. NOLOGIN except during a
 --     controlled maintenance window.
+--
+-- FRESH-CLUSTER PROVISIONING ORDER (Phase 1.1 re-verification, proven
+-- live 2026-11-01): create the NOLOGIN roles first (the DO block
+-- below), then Alembic, then rls.sql + triggers.sql, then this file,
+-- then seed. rls.sql first fails on the missing maintenance role;
+-- this file first fails on the missing app_current_merchant_id().
+-- See m1/scripts/provision_db.sh, which encodes this order.
 --
 -- ROLE-ENFORCED vs DOCUMENTED-ONLY (local single-server setup):
 --   Role-enforced by this file (once applied by a superuser):
@@ -272,6 +284,25 @@ GRANT EXECUTE ON FUNCTION public.app_current_user_id() TO courierledger_maintena
 -- protocol lives next to the roles that rely on it.
 -- ---------------------------------------------------------------------------
 
+-- ---------------------------------------------------------------------------
+-- Per-role timeouts (Phase 2, applied live 2026-11-01, verified via
+-- pg_roles.rolconfig). No restart needed. These bound runaway queries
+-- and leaked idle transactions: an idle transaction holds locks and
+-- can block the CL-20 advisory-lock protocol, which is
+-- transaction-scoped. The 30s runtime statement bound was chosen
+-- after the 50k-row CSV import and run creation were observed to
+-- complete well inside it; if a legitimate operation ever exceeds
+-- 30s, raise the timeout for that path only (SET LOCAL in that
+-- transaction), never globally.
+-- ---------------------------------------------------------------------------
+ALTER ROLE courierledger_runtime SET statement_timeout = '30s';
+ALTER ROLE courierledger_runtime SET idle_in_transaction_session_timeout = '60s';
+ALTER ROLE courierledger_runtime SET lock_timeout = '5s';
+
+ALTER ROLE courierledger_maintenance SET statement_timeout = '10min';
+ALTER ROLE courierledger_maintenance SET idle_in_transaction_session_timeout = '10min';
+ALTER ROLE courierledger_maintenance SET lock_timeout = '30s';
+
 -- ============================================================================
 -- Notes / open items for the coordinator
 -- 1. No passwords are set in this file (see header). Create the roles
@@ -283,4 +314,13 @@ GRANT EXECUTE ON FUNCTION public.app_current_user_id() TO courierledger_maintena
 -- 3. Until the application is configured with separate DATABASE_URLs
 --    per role, these grants are a specification, not live enforcement
 --    (see "Role-enforced vs documented-only" in the header).
+-- 4. NOLOGIN-role passwords: courierledger_migrator and
+--    courierledger_maintenance both carry password verifiers despite
+--    NOLOGIN (verified live, Phase 2). NOLOGIN blocks login today, so
+--    this is not an active hole — but flipping LOGIN would make a
+--    stored password live immediately. Either null them
+--    (ALTER ROLE ... PASSWORD NULL) if break-glass goes through the
+--    superuser, or record them in PRODUCTION_SECRETS_GUIDE.md as the
+--    break-glass credential with rotation discipline. Do not flip
+--    LOGIN on either role without a reviewed change.
 -- ============================================================================

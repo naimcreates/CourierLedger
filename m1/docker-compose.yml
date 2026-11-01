@@ -14,6 +14,14 @@
 # development); the DB port binds to loopback only. Docker cannot run
 # in this VM, so this file is verified by YAML validation + inspection
 # only, not by `docker compose up` (B-2 still open).
+#
+# DOCKER STATUS (Phase 2, Part 5 — 2026-11-01): containers cannot
+# start in this VM (`runc create failed: setns: operation not
+# permitted`) and the `docker` binary itself is currently absent
+# (removed by a container replacement). Do NOT claim this stack is
+# verified until `docker compose up` actually runs somewhere. The
+# supported local fallback is native PostgreSQL — see
+# m1/LOCAL_VERIFICATION.md for the provisioning order.
 
 services:
   db:
@@ -55,7 +63,9 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       CREATE_TABLES_ON_STARTUP: "false"
     ports:
-      - "8000:8000"
+      # Phase 2 (Part 5): loopback-only, like the db port. This is a
+      # local-dev stack; nothing here should listen on all interfaces.
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy

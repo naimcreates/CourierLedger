@@ -111,7 +111,9 @@ jobs:
         run: |
           set -euo pipefail
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
-            -c "CREATE ROLE courierledger LOGIN PASSWORD '${CI_PG_PASSWORD}';"
+            -c "CREATE ROLE courierledger LOGIN PASSWORD '${CI_PG_PASSWORD}';" \
+            -c "CREATE ROLE courierledger_migrator NOLOGIN;" \
+            -c "CREATE ROLE courierledger_maintenance NOLOGIN;"
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE courierledger_app OWNER courierledger;" \
             -c "CREATE DATABASE courierledger_dev OWNER courierledger;"
@@ -285,7 +287,9 @@ jobs:
         run: |
           set -euo pipefail
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
-            -c "CREATE ROLE courierledger LOGIN PASSWORD '${CI_PG_PASSWORD}';"
+            -c "CREATE ROLE courierledger LOGIN PASSWORD '${CI_PG_PASSWORD}';" \
+            -c "CREATE ROLE courierledger_migrator NOLOGIN;" \
+            -c "CREATE ROLE courierledger_maintenance NOLOGIN;"
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE courierledger_app OWNER courierledger;"
           MIGRATION_DATABASE_URL="${OWNER_URL}" \

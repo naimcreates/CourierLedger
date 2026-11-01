@@ -127,6 +127,12 @@ jobs:
             IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'courierledger_runtime') THEN
               CREATE ROLE courierledger_runtime LOGIN;
             END IF;
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'courierledger_migrator') THEN
+              CREATE ROLE courierledger_migrator NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'courierledger_maintenance') THEN
+              CREATE ROLE courierledger_maintenance NOLOGIN;
+            END IF;
           END
           $$;
           EOSQL
@@ -277,6 +283,12 @@ jobs:
             END IF;
             IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'courierledger_runtime') THEN
               CREATE ROLE courierledger_runtime LOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'courierledger_migrator') THEN
+              CREATE ROLE courierledger_migrator NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'courierledger_maintenance') THEN
+              CREATE ROLE courierledger_maintenance NOLOGIN;
             END IF;
           END
           $$;

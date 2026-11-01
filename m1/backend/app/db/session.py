@@ -44,7 +44,21 @@ def _make_engine(url: str) -> Engine:
     # can never carry a previous request's context into the next
     # checkout. Verified live in tests/test_runtime_role_live_pg.py
     # (test_pooled_connection_context_does_not_leak).
-    return create_engine(url, pool_pre_ping=True)
+    # Pool values are explicit (Phase 2) and equal the SQLAlchemy
+    # defaults that were in effect before: at most 15 connections
+    # per backend process. pool_recycle=1800 retires connections
+    # after 30 minutes so none lives forever. No external pooler is
+    # configured; if one is ever added it MUST be PgBouncer in
+    # transaction mode (v0.1 §E.5) — session-mode pooling is forbidden
+    # because tenant context is transaction-local.
+    return create_engine(
+        url,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=30,
+        pool_recycle=1800,
+    )
 
 
 engine: Engine = _make_engine(settings.database_url)

@@ -19,6 +19,16 @@ RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 
+# Phase 2 (Part 5): do not serve as root. `node` is the non-root
+# user shipped in the node image; the build above ran as root, so
+# hand the tree over before dropping privileges.
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 5173
+
+# Node 24 has a global fetch(), so no curl/wget install is needed.
+HEALTHCHECK --interval=10s --timeout=5s --retries=5 \
+    CMD node -e "fetch('http://127.0.0.1:5173/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]
