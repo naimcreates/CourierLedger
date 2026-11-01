@@ -1,0 +1,11 @@
+merchant_order_id,tracking_id,courier_fixture,outcome,amount_to_collect_poisha,documented_partial_poisha,reported_collected_poisha,expected_delivery_fee_poisha,reported_delivery_fee_poisha,contractual_delivery_fee_poisha,contractual_delivery_fee_confirmed,contractual_delivery_fee_evidence,cod_fee_base,cod_fee_rate_bp,other_fees_poisha,return_fee_poisha,excluded_tax_poisha,reported_excluded_tax_poisha,reported_deductions_total_poisha,reported_cod_fee_poisha,reported_other_fee_poisha,reported_return_fee_poisha,reported_payout_poisha,vat_mode,vat_formula,vat_rate_bp,note
+EDGE-01,TRK-E01,Fixture Alpha,delivered,100000,,100000,7000,7000,,,,full_cod,0,0,0,0,0,7000,0,0,0,93000,,,,Zero COD fee rate
+EDGE-02,TRK-E02,Fixture Beta,delivered,100000,,5000,7000,7000,7000,yes,fixture-rate-card-2026-10-31,cod_minus_delivery_fee,100,0,0,0,0,7000,0,0,0,-2000,,,,Reported collection below D_c so F_R is 0
+EDGE-03,TRK-E03,Fixture Alpha,delivered,0,,0,0,0,,,,full_cod,100,0,0,0,0,0,0,0,0,0,,,,Zero COD boundary
+EDGE-04,TRK-E04,Fixture Alpha,delivered,10000000000,,10000000000,700000,700000,,,,full_cod,100,0,0,0,0,100700000,100000000,0,0,9899300000,,,,Large values
+EDGE-05,TRK-E05,Fixture Alpha,partially_delivered,80000,,50000,7000,7000,,,,full_cod,100,0,0,0,0,7500,500,0,0,42500,,,,Partial delivery without documented partial amount
+EDGE-06,TRK-E06,Fixture Alpha,delivered,100000,,100000,,7000,,,,full_cod,100,0,0,0,0,8000,1000,0,0,92000,,,,Missing expected delivery fee
+EDGE-07,TRK-E07,Fixture Alpha,delivered,100000,,abc,7000,7000,,,,full_cod,100,0,0,0,0,8000,1000,0,0,92000,,,,Invalid reported collected value
+EDGE-08,,Fixture Alpha,delivered,50000,,50000,5000,5000,,,,full_cod,100,0,0,0,0,5500,500,0,0,44500,,,,Blank tracking ID
+EDGE-09,TRK-E09,Fixture Alpha,delivered,1050,,1050,0,0,,,,full_cod,100,0,0,0,0,11,11,0,0,1039,,,,Half-up rounding 1050 at 1 percent is 11
+EDGE-10,TRK-E10,Fixture Gamma,delivered,100000,,100000,7000,7000,,,,reported_collected,100,0,0,0,0,8000,1000,0,0,92000,,,,Reported-collected base fully matched

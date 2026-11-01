@@ -1,0 +1,525 @@
+{
+  "ok": true,
+  "pdf": "/home/hatch/workspace/goals/courierledger-planning-and-market-validation/files/courierledger-validation-playbook/courierledger-validation-playbook.pdf",
+  "pages": 0,
+  "pngs": [],
+  "fonts": {
+    "missing": [],
+    "unused": [],
+    "used": [
+      "Liberation Sans"
+    ],
+    "expected": [
+      "Liberation Sans:400",
+      "Liberation Sans:700"
+    ]
+  },
+  "overflow": [],
+  "text_floor": [
+    {
+      "index": 0,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 51,
+          "max_node_chars": 46,
+          "sample": "CourierLedger - Validation Playbook - 31"
+        },
+        {
+          "pt": 8.5,
+          "chars": 272,
+          "max_node_chars": 131,
+          "sample": "Money language used throughout:"
+        },
+        {
+          "pt": 9,
+          "chars": 43,
+          "max_node_chars": 43,
+          "sample": "CourierLedger • Market validation • Plan"
+        },
+        {
+          "pt": 10.5,
+          "chars": 976,
+          "max_node_chars": 274,
+          "sample": "Status at issue:"
+        },
+        {
+          "pt": 11.5,
+          "chars": 38,
+          "max_node_chars": 26,
+          "sample": "Who this is for"
+        },
+        {
+          "pt": 13,
+          "chars": 132,
+          "max_node_chars": 132,
+          "sample": "Do Bangladesh-based small and medium onl"
+        },
+        {
+          "pt": 30,
+          "chars": 30,
+          "max_node_chars": 30,
+          "sample": "14-Day Market Validation Playbook"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 37,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 10.5,
+          "chars": 1592,
+          "max_node_chars": 400,
+          "sample": "Hypothesis:"
+        },
+        {
+          "pt": 11.5,
+          "chars": 72,
+          "max_node_chars": 44,
+          "sample": "What counts as the problem, in the selle"
+        },
+        {
+          "pt": 16,
+          "chars": 40,
+          "max_node_chars": 40,
+          "sample": "1. The problem hypothesis - stated so it"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 37,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 9,
+          "chars": 1326,
+          "max_node_chars": 65,
+          "sample": "ID"
+        },
+        {
+          "pt": 10.5,
+          "chars": 121,
+          "max_node_chars": 121,
+          "sample": "Each assumption below is unproven. The t"
+        },
+        {
+          "pt": 16,
+          "chars": 48,
+          "max_node_chars": 48,
+          "sample": "2. Assumptions that must be tested - wit"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 37,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 9,
+          "chars": 790,
+          "max_node_chars": 116,
+          "sample": "ID"
+        },
+        {
+          "pt": 10.5,
+          "chars": 870,
+          "max_node_chars": 328,
+          "sample": "Use verbatim, in Bangla or English as th"
+        },
+        {
+          "pt": 11.5,
+          "chars": 58,
+          "max_node_chars": 58,
+          "sample": "Recruitment channels to try (log which o"
+        },
+        {
+          "pt": 16,
+          "chars": 55,
+          "max_node_chars": 55,
+          "sample": "3. Screening questionnaire - recruit beh"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 37,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 9.5,
+          "chars": 1225,
+          "max_node_chars": 121,
+          "sample": "Q1. What do you sell, and through which "
+        },
+        {
+          "pt": 10.5,
+          "chars": 269,
+          "max_node_chars": 192,
+          "sample": "Open with:"
+        },
+        {
+          "pt": 11.5,
+          "chars": 114,
+          "max_node_chars": 59,
+          "sample": "A. Context (5 min)"
+        },
+        {
+          "pt": 16,
+          "chars": 53,
+          "max_node_chars": 53,
+          "sample": "4. Interview guide - the last settlement"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 37,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 9.5,
+          "chars": 917,
+          "max_node_chars": 134,
+          "sample": "Q19. How do you confirm the money actual"
+        },
+        {
+          "pt": 10.5,
+          "chars": 812,
+          "max_node_chars": 283,
+          "sample": "Never ask:"
+        },
+        {
+          "pt": 11.5,
+          "chars": 143,
+          "max_node_chars": 58,
+          "sample": "D. Bank verification and records (5 min)"
+        },
+        {
+          "pt": 16,
+          "chars": 27,
+          "max_node_chars": 27,
+          "sample": "4. Interview guide (continued)"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 37,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 8.5,
+          "chars": 170,
+          "max_node_chars": 170,
+          "sample": "A realistic pace for one researcher is t"
+        },
+        {
+          "pt": 9,
+          "chars": 1592,
+          "max_node_chars": 91,
+          "sample": "Day"
+        },
+        {
+          "pt": 16,
+          "chars": 34,
+          "max_node_chars": 34,
+          "sample": "5. The 14-day plan - what happens each d"
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 37,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 9,
+          "chars": 771,
+          "max_node_chars": 52,
+          "sample": "Measure (from tracker)"
+        },
+        {
+          "pt": 10.5,
+          "chars": 819,
+          "max_node_chars": 331,
+          "sample": "Day 7 rules:"
+        },
+        {
+          "pt": 11.5,
+          "chars": 78,
+          "max_node_chars": 41,
+          "sample": "Day 7 gate - is there a signal worth pur"
+        },
+        {
+          "pt": 16,
+          "chars": 51,
+          "max_node_chars": 51,
+          "sample": "6. Decision scorecards - thresholds fixe"
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 37,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 9,
+          "chars": 979,
+          "max_node_chars": 136,
+          "sample": "Metric"
+        },
+        {
+          "pt": 10.5,
+          "chars": 331,
+          "max_node_chars": 110,
+          "sample": "A claim enters the findings only if it a"
+        },
+        {
+          "pt": 11.5,
+          "chars": 20,
+          "max_node_chars": 20,
+          "sample": "Evidence quality rules"
+        },
+        {
+          "pt": 16,
+          "chars": 47,
+          "max_node_chars": 47,
+          "sample": "7. Evidence and metrics - how every clai"
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 38,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 8.5,
+          "chars": 368,
+          "max_node_chars": 368,
+          "sample": "Sources (vendor / listing pages, checked"
+        },
+        {
+          "pt": 9,
+          "chars": 1452,
+          "max_node_chars": 139,
+          "sample": "Option (source)"
+        },
+        {
+          "pt": 10.5,
+          "chars": 314,
+          "max_node_chars": 210,
+          "sample": "The alternative to CourierLedger is usua"
+        },
+        {
+          "pt": 16,
+          "chars": 60,
+          "max_node_chars": 60,
+          "sample": "8. Competitors and alternatives - what t"
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 38,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 10.5,
+          "chars": 1562,
+          "max_node_chars": 282,
+          "sample": "Hard rule:"
+        },
+        {
+          "pt": 11.5,
+          "chars": 67,
+          "max_node_chars": 39,
+          "sample": "Script - narrate the question, not the v"
+        },
+        {
+          "pt": 16,
+          "chars": 49,
+          "max_node_chars": 49,
+          "sample": "9. Prototype demonstration - synthetic d"
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 38,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 8.5,
+          "chars": 1113,
+          "max_node_chars": 452,
+          "sample": "Fields: Interview ID (V-01, V-02...) | D"
+        },
+        {
+          "pt": 10.5,
+          "chars": 604,
+          "max_node_chars": 181,
+          "sample": "The companion tracker:"
+        },
+        {
+          "pt": 11.5,
+          "chars": 204,
+          "max_node_chars": 45,
+          "sample": "A. Interview log (one row per interview)"
+        },
+        {
+          "pt": 16,
+          "chars": 58,
+          "max_node_chars": 58,
+          "sample": "10. Data collection templates - copy the"
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 38,
+          "max_node_chars": 32,
+          "sample": "CourierLedger - Validation Playbook"
+        },
+        {
+          "pt": 9.5,
+          "chars": 339,
+          "max_node_chars": 339,
+          "sample": "\"Hello, I am researching how online sell"
+        },
+        {
+          "pt": 10.5,
+          "chars": 972,
+          "max_node_chars": 323,
+          "sample": "If asked what the research is for, answe"
+        },
+        {
+          "pt": 11.5,
+          "chars": 103,
+          "max_node_chars": 61,
+          "sample": "Outreach message (adapt the channel line"
+        },
+        {
+          "pt": 16,
+          "chars": 48,
+          "max_node_chars": 48,
+          "sample": "Appendix - Outreach message and note-tak"
+        }
+      ]
+    }
+  ],
+  "image_resolution": [
+    {
+      "index": 0,
+      "images": []
+    },
+    {
+      "index": 1,
+      "images": []
+    },
+    {
+      "index": 2,
+      "images": []
+    },
+    {
+      "index": 3,
+      "images": []
+    },
+    {
+      "index": 4,
+      "images": []
+    },
+    {
+      "index": 5,
+      "images": []
+    },
+    {
+      "index": 6,
+      "images": []
+    },
+    {
+      "index": 7,
+      "images": []
+    },
+    {
+      "index": 8,
+      "images": []
+    },
+    {
+      "index": 9,
+      "images": []
+    },
+    {
+      "index": 10,
+      "images": []
+    },
+    {
+      "index": 11,
+      "images": []
+    },
+    {
+      "index": 12,
+      "images": []
+    }
+  ],
+  "geometry": {
+    "failures": [],
+    "advisories": []
+  },
+  "gate_failures": [],
+  "advisories": [
+    "most text renders at 9.5pt, below the 10pt body target; acceptable only when the brief asks for a compact document"
+  ]
+}

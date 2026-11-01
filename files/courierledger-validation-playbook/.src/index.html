@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CourierLedger 14-Day Market Validation Playbook</title>
+<style>
+@page{size:A4;margin:0}
+*{box-sizing:border-box;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+body{margin:0;font-family:'Liberation Sans','Noto Sans',sans-serif;color:#1e293b;font-size:10.5pt;line-height:1.5;background:#fff}
+.page{min-height:297mm;padding:18mm 17mm 16mm 17mm;position:relative}
+.page+.page{page-break-before:always}
+h1{font-size:30pt;line-height:1.1;color:#0f172a;margin:0 0 6mm}
+h2{font-size:16pt;color:#0f766e;border-bottom:2px solid #0f766e;padding-bottom:2mm;margin:0 0 4mm;line-height:1.25}
+h3{font-size:11.5pt;color:#0f172a;margin:5mm 0 2mm}
+p{margin:0 0 3mm} ul,ol{margin:1mm 0 3mm 5mm;padding-left:4mm} li{margin-bottom:1.2mm}
+table{width:100%;border-collapse:collapse;font-size:9pt;margin:2mm 0 4mm}
+th{background:#0f766e;color:#fff;text-align:left;padding:2mm;vertical-align:top}
+td{border-bottom:1px solid #cbd5e1;padding:2mm;vertical-align:top}
+tr{break-inside:avoid} .small{font-size:8.5pt;color:#475569}
+.callout{background:#f0fdfa;border:1px solid #99f6e4;border-left:4px solid #0f766e;padding:3.5mm;margin:3mm 0}
+.warn{background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #d97706;padding:3.5mm;margin:3mm 0}
+.kicker{font-size:9pt;letter-spacing:.12em;text-transform:uppercase;color:#0f766e;font-weight:700}
+.foot{position:absolute;bottom:10mm;left:17mm;right:17mm;font-size:8pt;color:#64748b;border-top:1px solid #e2e8f0;padding-top:2mm;display:flex;justify-content:space-between}
+.cover{padding-top:28mm} .coverbox{background:#0f766e;color:#fff;padding:7mm;margin:6mm 0} .coverbox p{margin:0}
+.tag{display:inline-block;background:#ccfbf1;color:#115e59;padding:1mm 3mm;border-radius:2mm;font-size:8.5pt;font-weight:700;margin-right:2mm}
+.q{background:#f8fafc;border:1px solid #e2e8f0;padding:3mm;margin:2mm 0;font-size:9.5pt}
+strong{color:#0f172a}
+</style></head><body>
+
+<div class="page cover">
+<div class="kicker">CourierLedger &bull; Market validation &bull; Planning only</div>
+<h1>14-Day Market Validation Playbook</h1>
+<p style="font-size:13pt;color:#334155">Do Bangladesh-based small and medium online sellers have a recurring, meaningful cash-on-delivery (COD) courier reconciliation problem worth solving?</p>
+<div class="coverbox"><p><strong style="color:#fff">Status at issue:</strong> No interviews, surveys or demos have been conducted for this plan. No results, market sizes or customer feedback are claimed in this document. The P0 disposable prototype is complete (47 tests passed, 0 failed, as last reported) and is used here only with synthetic data. No production (M1) work is authorised by this playbook.</p></div>
+<h3>Who this is for</h3>
+<p>Bangladesh-based online sellers who sell on Facebook, their own website, WooCommerce, Shopify or a mix, and who receive COD settlements from one or more of Steadfast, Pathao, Paperfly, RedX and eCourier. Do not assume those couriers settle, charge or report in the same way.</p>
+<h3>What you will have after 14 days</h3>
+<ul><li>A completed evidence tracker: one row per seller, coded the same way every time.</li><li>A competitor log based on hands-on checks, not marketing pages alone.</li><li>A Day 7 and a Day 14 decision - Continue, Revise the hypothesis, Narrow the market, or Stop - taken against thresholds set in this document before fieldwork starts.</li></ul>
+<div class="callout"><strong>How to use this playbook:</strong> Work through Sections 1-4 before contacting anyone. Run the days in Section 5 in order. Score the gates in Section 6 exactly as written, even if the answer is Stop. Keep every note in the templates in Section 10.</div>
+<p class="small">Money language used throughout: <em>expected</em> (what the seller expected to collect and be paid), <em>courier-reported</em> (what the courier statement says), and <em>bank-confirmed</em> (what actually arrived) are three different things and are never merged. An unexplained difference is recorded as unexplained - never as a confirmed loss.</p>
+<div class="foot"><span>CourierLedger - Validation Playbook - 31 October 2026</span><span>Page 1</span></div>
+</div>
+
+<div class="page">
+<h2>1. The problem hypothesis - stated so it can fail</h2>
+<p><strong>Hypothesis:</strong> A meaningful share of Bangladesh-based small and medium online sellers who use COD couriers regularly spend significant time checking courier settlements by hand, regularly find differences they cannot explain from the statement alone (under-collection, unexpected delivery or return fees, or a payout that does not match the statement), and have no current workflow that reliably separates expected, courier-reported and bank-confirmed amounts at shipment level.</p>
+<p>If sellers instead check settlements quickly, rarely find unexplained differences, or already have a tool or routine that catches them, the hypothesis fails - and that is a valid, useful result of these 14 days.</p>
+<h3>What counts as the problem, in the seller's own terms</h3>
+<ul><li>Time: minutes or hours spent per settlement cycle checking statements against orders and bank or mobile-money receipts.</li><li>Frequency: how often a difference appears that the seller cannot explain from the documents they have.</li><li>Consequence: money queried with a courier, money written off, delayed decisions, or distrust of their own profit figures.</li><li>Workaround cost: a staff member, an accountant, a spreadsheet routine, or a paid tool already doing this job.</li></ul>
+<div class="warn"><strong>Do not lead.</strong> Never describe CourierLedger, its findings (collection variance, fee variance, statement inconsistency), or the words "underpaid" or "loss" before the seller has described their last settlement in their own words. The interview guide in Section 4 is written to prevent this.</div>
+<h3>Scope boundaries for validation</h3>
+<ul><li>In scope: sellers with COD volume in the last 30 days who personally check, or supervise checking of, courier settlements.</li><li>Out of scope: prepaid-only sellers, courier staff, and anyone asked to share real financial records. No real merchant data goes into the P0 prototype.</li><li>Public courier pricing pages are not evidence of any individual seller's contract. Rates are only recorded as the seller describes their own merchant-confirmed terms.</li></ul>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 2</span></div>
+</div>
+
+<div class="page">
+<h2>2. Assumptions that must be tested - with failure signals</h2>
+<p>Each assumption below is unproven. The threshold is fixed now, before interviews, so the Day 7 and Day 14 gates cannot be moved to fit the answers.</p>
+<table><tr><th style="width:7%">ID</th><th style="width:34%">Assumption</th><th style="width:30%">How it is tested</th><th>Disconfirming signal</th></tr>
+<tr><td>A1</td><td>Sellers reconcile every settlement cycle, not rarely.</td><td>Interview Q7-Q9; screening S5.</td><td>Most check monthly or only when cash feels short.</td></tr>
+<tr><td>A2</td><td>Reconciliation takes meaningful time (30+ minutes per cycle).</td><td>Timed recall of last cycle, Q9.</td><td>Median under 15 minutes.</td></tr>
+<tr><td>A3</td><td>Unexplained differences occur repeatedly.</td><td>Last-three-cycles recall, Q12-Q14.</td><td>Fewer than 3 of 10 sellers report one in last 3 cycles.</td></tr>
+<tr><td>A4</td><td>Partial and returned shipments are a specific pain point.</td><td>Q16-Q18.</td><td>Sellers handle returns without checking fees.</td></tr>
+<tr><td>A5</td><td>Sellers cannot verify bank settlement against statement lines.</td><td>Q19-Q21.</td><td>Bank total matching is enough for most sellers.</td></tr>
+<tr><td>A6</td><td>Sellers use 2+ couriers, multiplying formats and rules.</td><td>Screening S4.</td><td>Most use a single courier and its dashboard suffices.</td></tr>
+<tr><td>A7</td><td>Existing tools do not already solve this for non-Shopify / Facebook sellers.</td><td>Competitor checks (Sec. 8) + Q22.</td><td>A current tool demonstrably covers their channel and couriers.</td></tr>
+<tr><td>A8</td><td>The problem is frequent enough to pay to reduce.</td><td>Non-leading cost questions, Q24-Q26.</td><td>Sellers describe cost as trivial or absorbed.</td></tr>
+<tr><td>A9</td><td>Sellers will test a prototype with synthetic or redacted data.</td><td>Demo invitation, Day 10-12.</td><td>Fewer than 3 of 10 agree to a test session.</td></tr>
+<tr><td>A10</td><td>Fee rules differ by courier and by merchant contract.</td><td>Q15; redacted headers / rule docs only, with consent.</td><td>Sellers report identical, fully transparent rules.</td></tr>
+<tr><td>A11</td><td>A shipment-level breakdown is more useful than a batch total.</td><td>Demo reaction task, Sec. 9 script step 3.</td><td>Sellers only ever act on batch totals.</td></tr></table>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 3</span></div>
+</div>
+
+<div class="page">
+<h2>3. Screening questionnaire - recruit behaviour, not enthusiasm</h2>
+<p>Use verbatim, in Bangla or English as the seller prefers. Disqualify kindly and quickly; a wrong participant costs more than a slow recruit. Target mix across the 14 days: at least 12 completed interviews, spanning at least 3 couriers, at least 4 Facebook-first sellers, and a spread of volumes (under 100, 100-500, over 500 shipments per month). These are recruitment targets, not results.</p>
+<table><tr><th style="width:10%">ID</th><th>Question</th><th style="width:28%">Keep if</th></tr>
+<tr><td>S1</td><td>Do you sell online and deliver through a courier in Bangladesh?</td><td>Yes</td></tr>
+<tr><td>S2</td><td>In the last 30 days, did customers pay cash on delivery for any orders?</td><td>Yes - COD is live</td></tr>
+<tr><td>S3</td><td>Roughly how many COD shipments did you send in the last 30 days?</td><td>20 or more; record band</td></tr>
+<tr><td>S4</td><td>Which couriers did you use in the last 30 days? (Steadfast, Pathao, Paperfly, RedX, eCourier, other)</td><td>At least one named courier</td></tr>
+<tr><td>S5</td><td>When the courier pays you, who checks whether the amount is right - you, a team member, an accountant, or no one?</td><td>Seller checks or supervises</td></tr>
+<tr><td>S6</td><td>When did you last check a courier payment? What did you compare it against?</td><td>Within last 30 days; can describe it</td></tr>
+<tr><td>S7</td><td>Which channels do you sell through? (Facebook page, website, WooCommerce, Shopify, marketplace, other)</td><td>Record; ensure mix</td></tr>
+<tr><td>S8</td><td>Are you willing to talk for 30-40 minutes about that checking process? No sales pitch, no need to share account numbers or full statements.</td><td>Yes, with consent recorded</td></tr></table>
+<div class="callout"><strong>Disqualify if:</strong> no COD in the last 30 days; settlement checking is fully outsourced with no seller involvement; or the person sells courier or software services. Log every disqualification reason in the tracker - a high disqualify rate is itself evidence about the market.</div>
+<h3>Recruitment channels to try (log which one produced each interview)</h3>
+<ul><li>Seller communities and Facebook groups for Bangladeshi online sellers - post the screening questions, not a product pitch.</li><li>Warm introductions from accountants, packaging suppliers and seller peers; ask each interviewee for one introduction at the end.</li><li>Direct outreach to shops whose public pages show COD delivery. Keep a contact log; contact each seller at most twice.</li></ul>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 4</span></div>
+</div>
+
+<div class="page">
+<h2>4. Interview guide - the last settlement, in detail (35-40 min)</h2>
+<p>Open with: <em>"I am researching how online sellers check courier payments. I am not selling anything in this call. I will ask about the last time you did it, step by step. Please do not share account numbers, customer details or full statements."</em> Record only with permission; otherwise take notes in the template in Section 10.</p>
+<h3>A. Context (5 min)</h3>
+<div class="q">Q1. What do you sell, and through which channels?<br>Q2. Which couriers do you use now, and why those?<br>Q3. Roughly how many COD shipments in a normal month?</div>
+<h3>B. Walk through the last settlement (15 min) - the core of the interview</h3>
+<div class="q">Q4. Think of the most recent courier payment you checked. Which courier, and what period did it cover?<br>Q5. What documents or screens did you have open? (courier dashboard, statement file, order list, bank or bKash record, notebook, spreadsheet)<br>Q6. Walk me through it, step by step, from receiving the payment to deciding it was right - or not right.<br>Q7. How often does this checking happen?<br>Q8. Who else is involved, if anyone?<br>Q9. How long did that last check take, start to finish? What took the longest?<br>Q10. How do you keep track of orders that were delivered, partially delivered, returned or cancelled?</div>
+<h3>C. Fees and differences (10 min) - ask neutrally</h3>
+<div class="q">Q11. On that statement, which charges appeared? How do you know each one is correct?<br>Q12. In the last three settlement cycles, was there any amount that did not match what you expected? Please describe the most recent one.<br>Q13. What did you do about it? What did the courier say or do?<br>Q14. Have you ever left a difference unresolved? What happened to that amount in your books?<br>Q15. How were your delivery, COD and return charges agreed with the courier? Where is that written down?<br>Q16. For a returned parcel, what are you charged, and how do you check it?<br>Q17. For a partial delivery, how is the amount to collect decided, and how do you check it?<br>Q18. How do return fees owed to a courier get settled, if not from a COD payout?</div>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 5</span></div>
+</div>
+
+<div class="page">
+<h2>4. Interview guide (continued)</h2>
+<h3>D. Bank verification and records (5 min)</h3>
+<div class="q">Q19. How do you confirm the money actually reached your bank or mobile-money account?<br>Q20. Can you connect a bank credit to the specific shipments in a statement? How?<br>Q21. Where do you keep the record afterwards, and for how long?</div>
+<h3>E. Current tools and costs (5 min) - no leading</h3>
+<div class="q">Q22. What tools do you use for this today - spreadsheet, accounting software, courier dashboard, notebook, something else? What does each one do well or badly?<br>Q23. Have you ever paid for help with this - staff time, an accountant, software? What did it cost, roughly?<br>Q24. If this checking took no time at all, what would you do with that time? (Listen; do not price-anchor.)<br>Q25. Have you tried anything to make this easier in the last six months? What happened?<br>Q26. What, if anything, have you spent money on in the last six months to reduce errors or time in your delivery and payments process?</div>
+<div class="warn"><strong>Never ask:</strong> "Would you use a tool that...?", "Would you pay X taka for...?", or "Do you like this idea?" Hypothetical enthusiasm is not evidence. Willingness to pay is inferred only from past spending (Q23, Q26), time already spent, and a concrete commitment at the end: agreeing to a prototype test session with a date, or introducing another seller.</div>
+<h3>F. Close (3 min)</h3>
+<div class="q">Q27. Is there a part of checking courier payments I should have asked about and did not?<br>Q28. May I invite you to a short test session using example data only - no real statements needed? (If yes, book the date now.)<br>Q29. Who else checks courier payments carefully and might talk to me?</div>
+<p><strong>Immediately after each interview (10 min, non-negotiable):</strong> complete one tracker row, code the metrics in Section 7, save two verbatim quotes (with permission), and write one sentence: <em>"The strongest evidence for / against the hypothesis in this interview was..."</em> Separate what the seller said from what you think it means.</p>
+<h3>Bangla prompts for key money terms (use if the seller prefers Bangla)</h3>
+<ul><li>Expected amount - <em>expected taka (apni ja asha korechilen)</em>; courier-reported - <em>courier statement-e ja lekha ache</em>; bank-confirmed - <em>bank-e ja joma hoyeche</em>.</li><li>Unexplained difference - <em>hishebe meleni emon parthokko</em>. Do not translate this as "loss" (<em>khoti</em>) unless the seller uses that word first.</li></ul>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 6</span></div>
+</div>
+
+<div class="page">
+<h2>5. The 14-day plan - what happens each day</h2>
+<table><tr><th style="width:9%">Day</th><th style="width:33%">Activities</th><th style="width:29%">Expected evidence / target</th><th>Deliverable</th></tr>
+<tr><td>1</td><td>Freeze hypothesis, assumptions and thresholds (Sec. 1-2). Set up tracker. List 30 recruitment prospects.</td><td>Prospect list with channel noted.</td><td>Signed-off Sec. 1-2; empty tracker ready.</td></tr>
+<tr><td>2</td><td>Competitor desk research (Sec. 8). Pilot the interview on a friendly seller or peer; time it.</td><td>Pilot notes; guide trimmed to 40 min.</td><td>Competitor log v1; revised guide.</td></tr>
+<tr><td>3</td><td>Recruit: send screening to all prospects. Book interviews for Days 4-6.</td><td>Target: 5+ interviews booked.</td><td>Booking list; disqualify log started.</td></tr>
+<tr><td>4</td><td>Interviews 1-2. Same-day tracker completion.</td><td>2 coded tracker rows + quotes.</td><td>Daily note: strongest for/against.</td></tr>
+<tr><td>5</td><td>Interviews 3-4. Start hands-on competitor checks.</td><td>4 rows cumulative.</td><td>Competitor hands-on notes.</td></tr>
+<tr><td>6</td><td>Interviews 5-6. Recruit second wave from introductions.</td><td>6 rows cumulative.</td><td>Emerging-pattern memo (labelled as interim).</td></tr>
+<tr><td>7</td><td><strong>Gate day.</strong> No new interviews. Score Section 6 Day 7 scorecard honestly.</td><td>Decision recorded with numbers.</td><td>Day 7 decision memo.</td></tr>
+<tr><td>8</td><td>Act on Day 7 decision: continue, revise questions, or narrow segment. Book Days 9-12.</td><td>Revised focus documented.</td><td>Updated recruitment list.</td></tr>
+<tr><td>9</td><td>Interviews 7-8 (or narrowed-segment interviews).</td><td>8 rows cumulative.</td><td>Tracker updated same day.</td></tr>
+<tr><td>10</td><td>Interviews 9-10. First prototype test sessions for willing sellers (Sec. 9).</td><td>Demo observation notes.</td><td>Demo log started.</td></tr>
+<tr><td>11</td><td>Interviews 11-12. Prototype tests continue.</td><td>12 rows target reached.</td><td>Demo log updated.</td></tr>
+<tr><td>12</td><td>Follow-ups: clarify gaps, request consented redacted headers / rule docs only.</td><td>Headers/docs log (no financial data).</td><td>Evidence inventory.</td></tr>
+<tr><td>13</td><td>Complete competitor hands-on checks. Code all evidence. Draft findings.</td><td>All rows coded; no uncoded interviews.</td><td>Findings draft.</td></tr>
+<tr><td>14</td><td><strong>Gate day.</strong> Score Section 6 Day 14 scorecard. Write final decision memo.</td><td>Decision: Continue / Revise / Narrow / Stop.</td><td>Final validation report.</td></tr></table>
+<p class="small">A realistic pace for one researcher is two interviews per day plus same-day coding. If bookings fall short, extend recruitment effort - do not lower the screening bar or count casual chats as interviews.</p>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 7</span></div>
+</div>
+
+<div class="page">
+<h2>6. Decision scorecards - thresholds fixed before fieldwork</h2>
+<h3>Day 7 gate - is there a signal worth pursuing?</h3>
+<table><tr><th>Measure (from tracker)</th><th>Continue</th><th>Revise / Narrow</th><th>Stop signal</th></tr>
+<tr><td>Completed interviews</td><td>5 or more</td><td>3-4 (recruitment or segment problem)</td><td>Under 3 despite full outreach</td></tr>
+<tr><td>Sellers reporting an unexplained difference in last 3 cycles</td><td>3 or more of those interviewed</td><td>1-2</td><td>0</td></tr>
+<tr><td>Median time per settlement check</td><td>30 min or more</td><td>15-29 min</td><td>Under 15 min for all</td></tr>
+<tr><td>Sellers agreeing to a prototype test (with a date)</td><td>2 or more</td><td>1</td><td>0</td></tr></table>
+<p><strong>Day 7 rules:</strong> Continue only if no Stop signal fires and at least two Continue cells are met. If the signal concentrates in one segment (for example only sellers above 500 shipments/month, or only multi-courier sellers), choose Narrow and rewrite Days 8-14 for that segment. If differences exist but sellers resolve them inside the courier dashboard, choose Revise - the hypothesis, not the effort, is wrong.</p>
+<h3>Day 14 gate - is this a problem worth building for?</h3>
+<table><tr><th>Measure</th><th>Continue</th><th>Revise / Narrow</th><th>Stop</th></tr>
+<tr><td>Completed interviews</td><td>12 or more</td><td>8-11</td><td>Under 8</td></tr>
+<tr><td>Unexplained difference in last 3 cycles</td><td>At least 50% of sellers</td><td>30-49%</td><td>Under 30%</td></tr>
+<tr><td>Recurring time cost</td><td>Median 30+ min/cycle</td><td>Median 15-29 min</td><td>Median under 15 min</td></tr>
+<tr><td>Evidence of existing spend (staff, accountant, tool)</td><td>At least 4 sellers</td><td>2-3 sellers</td><td>0-1 sellers</td></tr>
+<tr><td>Prototype test sessions held</td><td>4 or more, with task completion observed</td><td>2-3</td><td>Under 2</td></tr>
+<tr><td>Competitor gap confirmed hands-on for target segment</td><td>Yes, documented</td><td>Partial</td><td>No - an existing tool covers it</td></tr></table>
+<p><strong>Day 14 rules:</strong> Continue requires at least four Continue cells and no Stop cell on unexplained differences or competitor gap. Any other pattern is Revise, Narrow or Stop - record which, and why, in the final memo. Positive comments, likes, or "great idea" remarks count for nothing in either gate.</p>
+<div class="callout"><strong>What Continue means - and does not mean:</strong> Continue means the evidence justifies a next validation step (for example a concierge test with consented, redacted data). It does not authorise production development (M1), paid hosting, or collecting real merchant financial data.</div>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 8</span></div>
+</div>
+
+<div class="page">
+<h2>7. Evidence and metrics - how every claim will be counted</h2>
+<table><tr><th style="width:26%">Metric</th><th style="width:37%">Definition (use exactly)</th><th>Source</th></tr>
+<tr><td>Reconciliation frequency</td><td>Times per month the seller checks a courier settlement.</td><td>Q7</td></tr>
+<tr><td>Time per cycle (minutes)</td><td>Seller's estimate for the last completed check, start to finish. Record the number given; do not round up.</td><td>Q9</td></tr>
+<tr><td>Couriers used</td><td>Count of distinct couriers used in last 30 days.</td><td>S4</td></tr>
+<tr><td>Monthly COD shipments</td><td>Band only: under 100 / 100-500 / over 500. Do not record exact revenue.</td><td>S3, Q3</td></tr>
+<tr><td>Unexplained-difference frequency</td><td>Number of last 3 cycles containing a difference the seller could not explain from their documents. 0-3.</td><td>Q12</td></tr>
+<tr><td>Difference consequence</td><td>Coded: queried and recovered / queried, unresolved / written off / not queried. Never relabel as "loss" in analysis unless the seller confirmed the money is gone.</td><td>Q13-Q14</td></tr>
+<tr><td>Workaround cost</td><td>Past spend only: staff hours, accountant fee, or tool subscription the seller already pays. Record amount and period as stated.</td><td>Q23, Q26</td></tr>
+<tr><td>Prototype commitment</td><td>Booked test session with a date = commitment. Verbal interest = not a commitment.</td><td>Q28</td></tr>
+<tr><td>Willingness to pay (indirect)</td><td>Inferred from past spend + time cost + commitment. Never from a direct hypothetical price question.</td><td>Q23-Q26, Q28</td></tr></table>
+<h3>Evidence quality rules</h3>
+<ul><li>A claim enters the findings only if it appears in a coded tracker row with a question reference. Memory and impressions do not count.</li><li>Keep verbatim quotes separate from your interpretation in every note.</li><li>Report distributions ("7 of 12 sellers..."), never a single vivid story as if it were the market.</li><li>Record disconfirming interviews with the same care as confirming ones; they decide the gates.</li></ul>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 9</span></div>
+</div>
+
+<div class="page">
+<h2>8. Competitors and alternatives - what to check, and what is only a claim</h2>
+<p>The alternative to CourierLedger is usually not another product - it is the courier dashboard plus a spreadsheet, a notebook, or an accountant. Research all four routes. Vendor pages below were checked on 31 October 2026; every capability listed is a <strong>vendor claim</strong>, not hands-on verification. Your job in Days 2, 5 and 13 is to verify or refute each claim for the target segment.</p>
+<table><tr><th style="width:22%">Option (source)</th><th style="width:40%">Claim relevant to reconciliation</th><th>Hands-on check required</th></tr>
+<tr><td>ParcelPilotBD - Shopify App Store listing</td><td>Reconciles Steadfast, Pathao and RedX payout statements line-by-line against Shopify orders; flags lines that do not add up or never appear. Listed from $5/month.</td><td>Does it work for Facebook-first and non-Shopify sellers? Paperfly / eCourier? Partial and return-fee handling? NULL vs zero handling?</td></tr>
+<tr><td>SmartParcel - Shopify App Store listing</td><td>Booking for Steadfast, Pathao and Carrybee with "auto COD reconciliation" on one dashboard. Listed from $1.99/month.</td><td>What does its reconciliation actually compare - totals or shipment lines? Which couriers and channels?</td></tr>
+<tr><td>inbaits - vendor website</td><td>E-commerce automation for WooCommerce and Shopify with Steadfast and Pathao sync and every fee in a monthly profit-and-loss.</td><td>Is reconciliation shipment-level? Does it separate expected, reported and bank-confirmed amounts?</td></tr>
+<tr><td>CXTIME, SORS ERP, Finox, Bengal Baqala, VendrDesk, Clicko - vendor websites</td><td>Bangladesh seller / ERP platforms variously claiming COD reconciliation, courier sync or true-profit reporting.</td><td>Same checks; note whether reconciliation needs their full platform (switching cost).</td></tr>
+<tr><td>Courier dashboards (Steadfast, Pathao, others)</td><td>Merchant panels showing COD balances, statements and payout schedules; payout speed and formats differ by courier.</td><td>Ask sellers to describe (not share credentials for) what the panel cannot show: cross-courier view, bank matching, partial/return detail.</td></tr>
+<tr><td>Spreadsheets, notebooks, accountants</td><td>The incumbent workflow for most small sellers.</td><td>Capture the actual steps from Q5-Q6. Price this workaround from Q23 before judging any paid alternative.</td></tr></table>
+<p class="small">Sources (vendor / listing pages, checked 31 Oct 2026): Shopify App Store - ParcelPilotBD (apps.shopify.com/parcelpilotbd); SmartParcel listing on apps.shopify.com; inbaits.com; cx.airtimelab.com; erp.sorstechnology.com; myfinox.com. Prices are the vendors' listed prices at check date and may change. No listing here is an endorsement, and no capability above has been hands-on tested yet - that testing is part of this plan.</p>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 10</span></div>
+</div>
+
+<div class="page">
+<h2>9. Prototype demonstration - synthetic data only (15 min)</h2>
+<div class="warn"><strong>Hard rule:</strong> Run the P0 prototype only with its synthetic demo and edge-case datasets. Never upload a seller's real statement, even if they offer it. If a seller wants to share an example, accept only: column headers with values removed, courier rule documentation, or a synthetic reproduction they approve - each logged with consent in the tracker.</div>
+<h3>Script - narrate the question, not the verdict</h3>
+<ol>
+<li><strong>CSV upload (2 min).</strong> Load the synthetic demo dataset. Say: "This is invented example data." Ask: "Does this look like the file or screen you start from?"</li>
+<li><strong>Column mapping (2 min).</strong> Show how columns are matched to fields. Ask what their statement calls the same things.</li>
+<li><strong>Results table (3 min).</strong> Show matched, open, mismatch, needs-review and matched-with-tolerance outcomes. Ask the seller to explain in their words what each row is telling them - their interpretation is the data.</li>
+<li><strong>Under-collection example (2 min).</strong> Open a shipment where courier-reported collected COD is below expected collectible COD. Note: the contractual payout can still be matched - watch whether the seller finds that distinction clear or confusing.</li>
+<li><strong>Fee discrepancy example (2 min).</strong> Open a fee/tax variance case. Ask: "What would you do next with this?"</li>
+<li><strong>Statement inconsistency example (2 min).</strong> Open a case where the statement's own arithmetic does not hold. Record whether the seller has seen this pattern before (yes/no, no prompting).</li>
+<li><strong>Data-quality warnings (2 min).</strong> Show a missing-contract case and a blank-versus-zero fee case. Ask whether the warning matches how they would want unknown values treated.</li></ol>
+<h3>Observe, do not score enthusiasm</h3>
+<ul><li>Record: could the seller explain each finding back correctly? Where did they hesitate or misread?</li><li>Record any finding they said they would act on, and the action they named.</li><li>Close with the only commitment question that counts: "May I follow up with a test using example data shaped like your statement headers?" Book a date or record a no.</li></ul>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 11</span></div>
+</div>
+
+<div class="page">
+<h2>10. Data collection templates - copy these into the evidence tracker</h2>
+<h3>A. Interview log (one row per interview)</h3>
+<p class="small">Fields: Interview ID (V-01, V-02...) | Date | Recruitment channel | Seller segment / channels | Volume band | Couriers used (count + names) | Reconciliation frequency/month | Time per cycle (min) | Unexplained differences in last 3 cycles (0-3) | Consequence code | Current workflow / tools | Workaround cost (as stated) | Partial/return pain (Y/N + note) | Bank verification method | Prototype session booked (date or No) | Introduction offered (Y/N) | Two verbatim quotes | Strongest evidence for/against (one sentence) | Consent notes.</p>
+<h3>B. Competitor log (one row per option checked)</h3>
+<p class="small">Fields: Option | Type (direct tool / platform / dashboard / manual) | Channels covered | Couriers covered | Reconciliation depth (batch total / shipment line / unknown) | Separates expected, reported, bank-confirmed? (Y/N/unknown) | Partial and return handling | Price as listed + date checked | Evidence type (vendor claim / hands-on test / seller report) | Gap for target segment.</p>
+<h3>C. Demo observation log (one row per test session)</h3>
+<p class="small">Fields: Session ID | Interview ID | Dataset used (demo / edge cases) | Each of the 7 script steps: seller explained back correctly? (Y/N) | Finding they would act on + action named | Misreadings or confusion | Follow-up booked (date or No).</p>
+<h3>D. Daily note (one per fieldwork day, 5 lines maximum)</h3>
+<p class="small">Interviews completed today (IDs) | Strongest evidence for the hypothesis | Strongest evidence against it | One thing to change tomorrow | Gate-relevant running totals.</p>
+<div class="callout"><strong>The companion tracker:</strong> These four templates are provided as a ready-to-use spreadsheet alongside this playbook, with the Day 7 and Day 14 scorecards pre-built from Section 6. Fill the tracker, not loose notes - the gates are scored from it.</div>
+<h3>Consent and privacy checklist (every participant)</h3>
+<ul><li>Explain purpose, duration and that nothing is being sold in the interview. Get explicit permission before recording.</li><li>Collect no account numbers, customer names, addresses, or full statements. Volume is recorded as a band only.</li><li>Redacted headers or rule documents only with explicit consent, logged with date and scope.</li><li>Store notes under the Interview ID, not the seller's name, in the working tracker.</li><li>Offer to delete a participant's notes on request, and honour it the same day.</li></ul>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 12</span></div>
+</div>
+
+<div class="page">
+<h2>Appendix - Outreach message and note-taking discipline</h2>
+<h3>Outreach message (adapt the channel line; send no product description)</h3>
+<div class="q">"Hello, I am researching how online sellers in Bangladesh check the payments they receive from courier companies for cash-on-delivery orders. I am speaking with sellers for 30-40 minutes about how they did this most recently. I am not selling anything, and you would not need to share any account details or statements. Would you be open to a short conversation this week? I can work around your schedule."</div>
+<p>If asked what the research is for, answer honestly and briefly: <em>"To understand whether the checking process is a real problem for sellers, before deciding whether anything should be built for it."</em> Do not name features, prices or timelines.</p>
+<h3>Note-taking discipline</h3>
+<ul><li>Write what the seller did and said, in order. Interpretation goes in the separate "strongest evidence" sentence, never mixed into the account.</li><li>Numbers are recorded exactly as stated, with the question number beside them, so the tracker coding can be audited.</li><li>Blank fields stay blank. An unanswered question is data; never fill a gap from a later guess.</li><li>At each gate, re-read two disconfirming interviews in full before scoring. The gates exist to stop a liked idea, not to ratify one.</li></ul>
+<h3>What happens after Day 14</h3>
+<p>The final memo states the decision, the tracker numbers behind it, the competitor gaps actually verified, and the strongest disconfirming evidence. If the decision is Continue, the memo proposes the next validation step only. Production development, paid hosting, live courier integration and real merchant data all remain out of scope until separately and explicitly approved.</p>
+<div class="callout"><strong>End of playbook.</strong> Start at Day 1. Do not skip the gates.</div>
+<div class="foot"><span>CourierLedger - Validation Playbook</span><span>Page 13</span></div>
+</div>
+
+</body></html>

@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "pdf": "/home/hatch/workspace/goals/courierledger-planning-and-market-validation/files/courierledger-m1-database-design/courierledger-m1-database-design.pdf",
+  "pages": 0,
+  "pngs": [],
+  "fonts": {
+    "missing": [],
+    "unused": [],
+    "used": [
+      "Liberation Sans",
+      "Liberation Mono"
+    ],
+    "expected": [
+      "Liberation Sans:400",
+      "Liberation Sans:700"
+    ]
+  },
+  "overflow": [],
+  "gate_failures": [],
+  "advisories": []
+}

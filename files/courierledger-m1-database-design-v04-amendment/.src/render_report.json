@@ -1,0 +1,932 @@
+{
+  "ok": true,
+  "pdf": "/home/hatch/workspace/goals/courierledger-planning-and-market-validation/files/courierledger-m1-database-design-v04-amendment/courierledger-m1-database-design-v04-amendment.pdf",
+  "pages": 0,
+  "pngs": [],
+  "fonts": {
+    "missing": [],
+    "unused": [],
+    "used": [
+      "Liberation Sans",
+      "Liberation Mono"
+    ],
+    "expected": [
+      "Liberation Sans:400",
+      "Liberation Sans:700"
+    ]
+  },
+  "overflow": [],
+  "text_floor": [
+    {
+      "index": 0,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 114,
+          "max_node_chars": 75,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        },
+        {
+          "pt": 8.3,
+          "chars": 1,
+          "max_node_chars": 1,
+          "sample": "c"
+        },
+        {
+          "pt": 9,
+          "chars": 24,
+          "max_node_chars": 24,
+          "sample": "Amendment v0.4  |  Design only"
+        },
+        {
+          "pt": 10,
+          "chars": 2102,
+          "max_node_chars": 366,
+          "sample": "A targeted correction amendment to the D"
+        },
+        {
+          "pt": 12,
+          "chars": 32,
+          "max_node_chars": 32,
+          "sample": "Technical Correction Amendment v0.4"
+        },
+        {
+          "pt": 25,
+          "chars": 42,
+          "max_node_chars": 42,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 57,
+          "max_node_chars": 39,
+          "sample": "Amendment at a glance"
+        },
+        {
+          "pt": 8.3,
+          "chars": 21,
+          "max_node_chars": 5,
+          "sample": "R"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1126,
+          "max_node_chars": 104,
+          "sample": "ID"
+        },
+        {
+          "pt": 10,
+          "chars": 1613,
+          "max_node_chars": 476,
+          "sample": "Five findings. Each one corrects a place"
+        },
+        {
+          "pt": 15,
+          "chars": 18,
+          "max_node_chars": 18,
+          "sample": "Amendment at a glance"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 93,
+          "max_node_chars": 54,
+          "sample": "CL-18 - Trigger enforcement versus malfo"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1018,
+          "max_node_chars": 375,
+          "sample": "shipment_match_decisions"
+        },
+        {
+          "pt": 10,
+          "chars": 2211,
+          "max_node_chars": 500,
+          "sample": "v0.3 CL-13 contains two statements that "
+        },
+        {
+          "pt": 11.5,
+          "chars": 60,
+          "max_node_chars": 43,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 59,
+          "max_node_chars": 59,
+          "sample": "CL-18 - CL-13 trigger enforcement versus"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 93,
+          "max_node_chars": 54,
+          "sample": "CL-18 - Trigger enforcement versus malfo"
+        },
+        {
+          "pt": 10,
+          "chars": 3399,
+          "max_node_chars": 517,
+          "sample": "The trigger judges the delta, not the wh"
+        },
+        {
+          "pt": 11.5,
+          "chars": 66,
+          "max_node_chars": 66,
+          "sample": "2. Exact proposed change (continued) - t"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 93,
+          "max_node_chars": 54,
+          "sample": "CL-18 - Trigger enforcement versus malfo"
+        },
+        {
+          "pt": 8.8,
+          "chars": 47,
+          "max_node_chars": 24,
+          "sample": "shipment_match_decisions"
+        },
+        {
+          "pt": 10,
+          "chars": 3231,
+          "max_node_chars": 464,
+          "sample": "v0.3 CL-13 section 2(c) (the arrival rou"
+        },
+        {
+          "pt": 11.5,
+          "chars": 98,
+          "max_node_chars": 42,
+          "sample": "3. Affected sections and tables"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 78,
+          "max_node_chars": 39,
+          "sample": "CL-19 - Idempotency purge and lease life"
+        },
+        {
+          "pt": 8.8,
+          "chars": 95,
+          "max_node_chars": 16,
+          "sample": "idempotency_keys"
+        },
+        {
+          "pt": 10,
+          "chars": 1447,
+          "max_node_chars": 266,
+          "sample": "v0.3 CL-14 separated the two clocks on"
+        },
+        {
+          "pt": 11.5,
+          "chars": 17,
+          "max_node_chars": 17,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 44,
+          "max_node_chars": 44,
+          "sample": "CL-19 - CL-14 idempotency purge and leas"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 78,
+          "max_node_chars": 39,
+          "sample": "CL-19 - Idempotency purge and lease life"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1300,
+          "max_node_chars": 191,
+          "sample": "abandoned"
+        },
+        {
+          "pt": 10,
+          "chars": 185,
+          "max_node_chars": 101,
+          "sample": "Clarifies v0.3 CL-14 sections 2(f) and 4"
+        },
+        {
+          "pt": 11.5,
+          "chars": 38,
+          "max_node_chars": 38,
+          "sample": "2. Exact proposed change - purge eligibi"
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 78,
+          "max_node_chars": 39,
+          "sample": "CL-19 - Idempotency purge and lease life"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1353,
+          "max_node_chars": 303,
+          "sample": "failed"
+        },
+        {
+          "pt": 10,
+          "chars": 1994,
+          "max_node_chars": 585,
+          "sample": "How an expired in_progress key is reclai"
+        },
+        {
+          "pt": 11.5,
+          "chars": 132,
+          "max_node_chars": 68,
+          "sample": "2. Exact proposed change (continued) - r"
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 78,
+          "max_node_chars": 39,
+          "sample": "CL-19 - Idempotency purge and lease life"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1125,
+          "max_node_chars": 213,
+          "sample": "Operation"
+        },
+        {
+          "pt": 10,
+          "chars": 1752,
+          "max_node_chars": 365,
+          "sample": "Two properties of the table as a whole a"
+        },
+        {
+          "pt": 11.5,
+          "chars": 69,
+          "max_node_chars": 42,
+          "sample": "3. Affected sections and tables"
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 78,
+          "max_node_chars": 39,
+          "sample": "CL-19 - Idempotency purge and lease life"
+        },
+        {
+          "pt": 8.8,
+          "chars": 87,
+          "max_node_chars": 11,
+          "sample": "completed"
+        },
+        {
+          "pt": 10,
+          "chars": 1254,
+          "max_node_chars": 381,
+          "sample": "T-27 (extended) - Idempotency recovery a"
+        },
+        {
+          "pt": 11.5,
+          "chars": 29,
+          "max_node_chars": 21,
+          "sample": "5. Updated test scenario"
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 82,
+          "max_node_chars": 43,
+          "sample": "CL-20 - Shared-user anonymisation serial"
+        },
+        {
+          "pt": 8.8,
+          "chars": 97,
+          "max_node_chars": 21,
+          "sample": "merchant_memberships"
+        },
+        {
+          "pt": 10,
+          "chars": 3027,
+          "max_node_chars": 416,
+          "sample": "v0.3 CL-15 section 4 specified the concu"
+        },
+        {
+          "pt": 11.5,
+          "chars": 70,
+          "max_node_chars": 53,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 48,
+          "max_node_chars": 48,
+          "sample": "CL-20 - CL-15 shared-user anonymisation "
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 82,
+          "max_node_chars": 43,
+          "sample": "CL-20 - Shared-user anonymisation serial"
+        },
+        {
+          "pt": 8.8,
+          "chars": 109,
+          "max_node_chars": 20,
+          "sample": "users"
+        },
+        {
+          "pt": 10,
+          "chars": 2889,
+          "max_node_chars": 623,
+          "sample": "Stage 2 procedure."
+        },
+        {
+          "pt": 11.5,
+          "chars": 94,
+          "max_node_chars": 67,
+          "sample": "2. Exact proposed change (continued) - S"
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 82,
+          "max_node_chars": 43,
+          "sample": "CL-20 - Shared-user anonymisation serial"
+        },
+        {
+          "pt": 8.8,
+          "chars": 25,
+          "max_node_chars": 20,
+          "sample": "merchant_memberships"
+        },
+        {
+          "pt": 10,
+          "chars": 3243,
+          "max_node_chars": 528,
+          "sample": "Transaction-level protocol, honestly lab"
+        },
+        {
+          "pt": 11.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 13,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 95,
+          "max_node_chars": 56,
+          "sample": "CL-21 - Same-batch input integrity and c"
+        },
+        {
+          "pt": 8.8,
+          "chars": 121,
+          "max_node_chars": 38,
+          "sample": "settlement_variance_calculations"
+        },
+        {
+          "pt": 10,
+          "chars": 1689,
+          "max_node_chars": 463,
+          "sample": "v0.3 CL-16 built bank variance history o"
+        },
+        {
+          "pt": 11.5,
+          "chars": 17,
+          "max_node_chars": 17,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 61,
+          "max_node_chars": 61,
+          "sample": "CL-21 - CL-16 same-batch input integrity"
+        }
+      ]
+    },
+    {
+      "index": 14,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 95,
+          "max_node_chars": 56,
+          "sample": "CL-21 - Same-batch input integrity and c"
+        },
+        {
+          "pt": 8.8,
+          "chars": 983,
+          "max_node_chars": 159,
+          "sample": "Addition"
+        },
+        {
+          "pt": 10,
+          "chars": 310,
+          "max_node_chars": 210,
+          "sample": "Strengthens v0.3 CL-16 sections 2 and 4 "
+        },
+        {
+          "pt": 11.5,
+          "chars": 56,
+          "max_node_chars": 56,
+          "sample": "2. Exact proposed change - batch equalit"
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 95,
+          "max_node_chars": 56,
+          "sample": "CL-21 - Same-batch input integrity and c"
+        },
+        {
+          "pt": 8.8,
+          "chars": 376,
+          "max_node_chars": 24,
+          "sample": "merchant_id"
+        },
+        {
+          "pt": 10,
+          "chars": 2840,
+          "max_node_chars": 459,
+          "sample": "With the batch on the input row, the two"
+        },
+        {
+          "pt": 11.5,
+          "chars": 67,
+          "max_node_chars": 67,
+          "sample": "2. Exact proposed change (continued) - c"
+        }
+      ]
+    },
+    {
+      "index": 16,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 95,
+          "max_node_chars": 56,
+          "sample": "CL-21 - Same-batch input integrity and c"
+        },
+        {
+          "pt": 8.8,
+          "chars": 107,
+          "max_node_chars": 22,
+          "sample": "bank_receipts"
+        },
+        {
+          "pt": 10,
+          "chars": 1759,
+          "max_node_chars": 351,
+          "sample": "v0.3 CL-16 section 2 (inputs table: one "
+        },
+        {
+          "pt": 11.5,
+          "chars": 69,
+          "max_node_chars": 42,
+          "sample": "3. Affected sections and tables"
+        }
+      ]
+    },
+    {
+      "index": 17,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 95,
+          "max_node_chars": 56,
+          "sample": "CL-21 - Same-batch input integrity and c"
+        },
+        {
+          "pt": 8.8,
+          "chars": 38,
+          "max_node_chars": 19,
+          "sample": "settlement_batch_id"
+        },
+        {
+          "pt": 10,
+          "chars": 1730,
+          "max_node_chars": 439,
+          "sample": "T-31 (new) - Same-batch inputs and input"
+        },
+        {
+          "pt": 11.5,
+          "chars": 29,
+          "max_node_chars": 21,
+          "sample": "5. Updated test scenario"
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 81,
+          "max_node_chars": 42,
+          "sample": "CL-22 - Trigger execution context under "
+        },
+        {
+          "pt": 8.8,
+          "chars": 44,
+          "max_node_chars": 11,
+          "sample": "merchant_id"
+        },
+        {
+          "pt": 10,
+          "chars": 3135,
+          "max_node_chars": 583,
+          "sample": "v0.3 CL-17 assigned every cross-table in"
+        },
+        {
+          "pt": 11.5,
+          "chars": 73,
+          "max_node_chars": 56,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 47,
+          "max_node_chars": 47,
+          "sample": "CL-22 - CL-17 trigger execution context "
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 81,
+          "max_node_chars": 42,
+          "sample": "CL-22 - Trigger execution context under "
+        },
+        {
+          "pt": 8.8,
+          "chars": 33,
+          "max_node_chars": 11,
+          "sample": "merchant_id"
+        },
+        {
+          "pt": 10,
+          "chars": 3199,
+          "max_node_chars": 603,
+          "sample": "Rule 3 - A dedicated validation policy a"
+        }
+      ]
+    },
+    {
+      "index": 20,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 81,
+          "max_node_chars": 42,
+          "sample": "CL-22 - Trigger execution context under "
+        },
+        {
+          "pt": 10,
+          "chars": 1378,
+          "max_node_chars": 532,
+          "sample": "v0.1 Section E (new subsection: the vali"
+        },
+        {
+          "pt": 11.5,
+          "chars": 69,
+          "max_node_chars": 42,
+          "sample": "3. Affected sections and tables"
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 81,
+          "max_node_chars": 42,
+          "sample": "CL-22 - Trigger execution context under "
+        },
+        {
+          "pt": 10,
+          "chars": 2027,
+          "max_node_chars": 863,
+          "sample": "T-32 (new) - Validation triggers under t"
+        },
+        {
+          "pt": 11.5,
+          "chars": 29,
+          "max_node_chars": 21,
+          "sample": "5. Updated test scenario"
+        }
+      ]
+    },
+    {
+      "index": 22,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 82,
+          "max_node_chars": 43,
+          "sample": "Consolidated test changes and traceabili"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1628,
+          "max_node_chars": 311,
+          "sample": "Test"
+        },
+        {
+          "pt": 10,
+          "chars": 287,
+          "max_node_chars": 287,
+          "sample": "Section I of v0.1, as amended by v0.2 an"
+        },
+        {
+          "pt": 15,
+          "chars": 23,
+          "max_node_chars": 23,
+          "sample": "Consolidated test changes"
+        }
+      ]
+    },
+    {
+      "index": 23,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 82,
+          "max_node_chars": 43,
+          "sample": "Consolidated test changes and traceabili"
+        },
+        {
+          "pt": 8.8,
+          "chars": 32,
+          "max_node_chars": 11,
+          "sample": "expires_at"
+        },
+        {
+          "pt": 10,
+          "chars": 1391,
+          "max_node_chars": 348,
+          "sample": "Row \"Match decisions form one linear cha"
+        },
+        {
+          "pt": 11.5,
+          "chars": 37,
+          "max_node_chars": 37,
+          "sample": "Invariant traceability delta (Appendix 1"
+        }
+      ]
+    },
+    {
+      "index": 24,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 59,
+          "max_node_chars": 39,
+          "sample": "Change log - v0.3 to v0.4"
+        },
+        {
+          "pt": 8.8,
+          "chars": 2944,
+          "max_node_chars": 478,
+          "sample": "Item"
+        },
+        {
+          "pt": 15,
+          "chars": 35,
+          "max_node_chars": 35,
+          "sample": "Change log - v0.3 to v0.4 (this amendmen"
+        }
+      ]
+    },
+    {
+      "index": 25,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 72,
+          "max_node_chars": 39,
+          "sample": "Remaining blockers and open decisions"
+        },
+        {
+          "pt": 10,
+          "chars": 2154,
+          "max_node_chars": 438,
+          "sample": "B-1. Market validation:"
+        },
+        {
+          "pt": 11.5,
+          "chars": 85,
+          "max_node_chars": 58,
+          "sample": "Blocking any M1 implementation (unchange"
+        },
+        {
+          "pt": 15,
+          "chars": 33,
+          "max_node_chars": 33,
+          "sample": "Remaining blockers and open decisions"
+        }
+      ]
+    },
+    {
+      "index": 26,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 109,
+          "max_node_chars": 70,
+          "sample": "CourierLedger M1 Database Design - Amend"
+        },
+        {
+          "pt": 10,
+          "chars": 2260,
+          "max_node_chars": 680,
+          "sample": "Ready to freeze as a design baseline - w"
+        },
+        {
+          "pt": 11.5,
+          "chars": 40,
+          "max_node_chars": 40,
+          "sample": "Is the database design ready for schema "
+        }
+      ]
+    }
+  ],
+  "image_resolution": [
+    {
+      "index": 0,
+      "images": []
+    },
+    {
+      "index": 1,
+      "images": []
+    },
+    {
+      "index": 2,
+      "images": []
+    },
+    {
+      "index": 3,
+      "images": []
+    },
+    {
+      "index": 4,
+      "images": []
+    },
+    {
+      "index": 5,
+      "images": []
+    },
+    {
+      "index": 6,
+      "images": []
+    },
+    {
+      "index": 7,
+      "images": []
+    },
+    {
+      "index": 8,
+      "images": []
+    },
+    {
+      "index": 9,
+      "images": []
+    },
+    {
+      "index": 10,
+      "images": []
+    },
+    {
+      "index": 11,
+      "images": []
+    },
+    {
+      "index": 12,
+      "images": []
+    },
+    {
+      "index": 13,
+      "images": []
+    },
+    {
+      "index": 14,
+      "images": []
+    },
+    {
+      "index": 15,
+      "images": []
+    },
+    {
+      "index": 16,
+      "images": []
+    },
+    {
+      "index": 17,
+      "images": []
+    },
+    {
+      "index": 18,
+      "images": []
+    },
+    {
+      "index": 19,
+      "images": []
+    },
+    {
+      "index": 20,
+      "images": []
+    },
+    {
+      "index": 21,
+      "images": []
+    },
+    {
+      "index": 22,
+      "images": []
+    },
+    {
+      "index": 23,
+      "images": []
+    },
+    {
+      "index": 24,
+      "images": []
+    },
+    {
+      "index": 25,
+      "images": []
+    },
+    {
+      "index": 26,
+      "images": []
+    }
+  ],
+  "geometry": {
+    "failures": [],
+    "advisories": []
+  },
+  "gate_failures": [],
+  "advisories": []
+}

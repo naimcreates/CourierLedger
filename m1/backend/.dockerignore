@@ -1,0 +1,7 @@
+# Keep the build context small and secret-free.
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+runs.sqlite3

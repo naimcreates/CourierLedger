@@ -1,0 +1,15 @@
+merchant_order_id,tracking_id,courier_fixture,outcome,amount_to_collect_poisha,documented_partial_poisha,reported_collected_poisha,expected_delivery_fee_poisha,reported_delivery_fee_poisha,contractual_delivery_fee_poisha,contractual_delivery_fee_confirmed,contractual_delivery_fee_evidence,cod_fee_base,cod_fee_rate_bp,other_fees_poisha,return_fee_poisha,excluded_tax_poisha,reported_excluded_tax_poisha,reported_deductions_total_poisha,reported_cod_fee_poisha,reported_other_fee_poisha,reported_return_fee_poisha,reported_payout_poisha,vat_mode,vat_formula,vat_rate_bp,note
+ORD-001,TRK-0001,Fixture Alpha,delivered,100000,,100000,7000,7000,,,,full_cod,100,0,0,0,0,8000,1000,0,0,92000,,,,Matched delivered shipment
+ORD-002,TRK-0002,Fixture Gamma,delivered,100000,,95000,7000,7000,,,,reported_collected,100,0,0,0,0,7950,950,0,0,87050,,,,V2.2.1 Ex2 scenario-only under-collection
+ORD-003,TRK-0003,Fixture Beta,delivered,100000,,100000,7000,9000,7000,yes,fixture-rate-card-2026-10-31,cod_minus_delivery_fee,100,0,0,0,0,9930,930,0,0,90070,,,,V2.2.1 Ex1 D_e vs D_r differ
+ORD-004,TRK-0004,Fixture Alpha,delivered,200000,,190000,6000,8000,,,,full_cod,100,0,0,0,0,9900,1900,0,0,180000,,,,V2.2.1 Ex4 multi-discrepancy
+ORD-005,TRK-0005,Fixture Beta,delivered,100000,,90000,7000,7000,,no,,cod_minus_delivery_fee,100,0,0,0,0,8000,1000,0,0,82000,,,,V2.2.1 Ex5 D_c unknown
+ORD-006,TRK-0006,Fixture Alpha,returned,80000,,0,7000,7000,,,,full_cod,100,0,0,0,0,7000,0,0,0,,,,,V2.2.1 Ex6 returned explicit zeros
+ORD-007,TRK-0007,Fixture Alpha,partially_delivered,80000,60000,60000,7000,7000,,,,full_cod,100,3500,0,0,0,11100,600,3500,0,48900,,,,Partial delivery documented 60000
+ORD-008,TRK-0008,Fixture Alpha,delivered,150000,,150000,6000,6000,,,,full_cod,100,0,0,0,0,7500,,0,0,142500,,,,Blank COD fee line
+ORD-009,TRK-0009,Fixture Alpha,delivered,120000,,120000,6000,6000,,,,full_cod,100,0,0,0,0,7200,"1,5x0",0,0,112800,,,,Invalid COD fee value
+ORD-010,TRK-0010,Fixture Alpha,delivered,150000,,150000,6000,6000,,,,full_cod,100,0,0,0,0,7500,1500,0,0,140000,,,,Statement inconsistency S=-2500
+ORD-011,TRK-DUP-01,Fixture Alpha,delivered,50000,,50000,5000,5000,,,,full_cod,100,0,0,0,0,5500,500,0,0,44500,,,,Duplicate tracking ID first row
+ORD-012,TRK-DUP-01,Fixture Alpha,delivered,60000,,60000,5000,5000,,,,full_cod,100,0,0,0,0,5600,600,0,0,54400,,,,Duplicate tracking ID second row
+ORD-013,TRK-0013,Fixture Alpha,,50000,,50000,5000,5000,,,,full_cod,100,0,0,0,0,5500,500,0,0,44500,,,,Missing outcome
+ORD-014,TRK-0014,Fixture Alpha,delivered,100000,,100000,11500,11500,,,,full_cod,100,0,0,0,0,12500,1000,0,0,87500,included,rate_on_net,1500,VAT included delivery fee

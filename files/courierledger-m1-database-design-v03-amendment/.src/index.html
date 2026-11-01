@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CourierLedger M1 Database Design Specification - Technical Correction Amendment v0.3</title>
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+body { margin: 0; font-family: 'Liberation Sans', 'Noto Sans', sans-serif; color: #1c2733; font-size: 10pt; line-height: 1.44; }
+.page { min-height: 297mm; padding: 17mm 18mm 15mm 18mm; display: flex; flex-direction: column; position: relative; }
+.page > .body { flex: 1 1 auto; }
+h1 { font-size: 25pt; line-height: 1.2; margin: 0 0 6mm 0; color: #12314e; }
+h2 { font-size: 15pt; line-height: 1.3; margin: 0 0 4mm 0; color: #12314e; }
+h3 { font-size: 11.5pt; margin: 4mm 0 1.6mm 0; color: #12314e; }
+h3:first-child { margin-top: 0; }
+p { margin: 0 0 2.5mm 0; }
+ul, ol { margin: 0 0 2.5mm 0; padding-left: 6mm; }
+li { margin-bottom: 0.9mm; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 3mm 0; font-size: 8.8pt; }
+th { background: #e9eff5; color: #12314e; text-align: left; padding: 1.6mm 2mm; border: 0.4pt solid #b9c7d4; font-size: 8.8pt; }
+td { padding: 1.6mm 2mm; border: 0.4pt solid #b9c7d4; vertical-align: top; }
+td.c, th.c { text-align: center; }
+code, .mono { font-family: 'Liberation Mono', 'Noto Sans Mono', monospace; font-size: 8.8pt; }
+pre { font-family: 'Liberation Mono', 'Noto Sans Mono', monospace; font-size: 8.4pt; line-height: 1.45; background: #f2f5f8; border: 0.4pt solid #c8d3de; padding: 3mm; margin: 0 0 4mm 0; white-space: pre-wrap; }
+.kicker { font-size: 9pt; letter-spacing: 1.6pt; text-transform: uppercase; color: #5a7186; margin: 0 0 4mm 0; }
+.sub { font-size: 12pt; color: #3c556e; margin: 0 0 6mm 0; line-height: 1.45; }
+.callout { border-left: 2.2mm solid #b3541e; background: #fdf3ec; padding: 3mm 4mm; margin: 0 0 4mm 0; }
+.callout.blue { border-left-color: #24567f; background: #eef4fa; }
+.callout p:last-child { margin-bottom: 0; }
+.verdict { border: 0.6pt solid #24567f; background: #eef4fa; padding: 3mm 4mm; margin: 0 0 4mm 0; }
+.verdict p:last-child { margin-bottom: 0; }
+.small { font-size: 8.8pt; color: #42586c; }
+.footer { border-top: 0.4pt solid #c8d3de; padding-top: 2mm; font-size: 8pt; color: #5a7186; display: flex; justify-content: space-between; }
+.tag { font-weight: bold; color: #12314e; }
+.covermeta { margin-top: 6mm; font-size: 10pt; }
+.covermeta td { border: none; padding: 1.2mm 4mm 1.2mm 0; font-size: 10pt; }
+.coverrule { border-top: 1mm solid #24567f; margin: 8mm 0; width: 38mm; }
+section, table, .callout, .verdict, pre { break-inside: avoid; page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<div class="page">
+<div class="body">
+<p class="kicker">Amendment v0.3 &nbsp;|&nbsp; Design only</p>
+<h1>CourierLedger M1 Database Design Specification</h1>
+<p class="sub">Technical Correction Amendment v0.3</p>
+<div class="coverrule"></div>
+<p>A targeted follow-up amendment to the Database Design Specification v0.1 (36 pages), as already amended by Technical Correction Amendment v0.2. This amendment supersedes only the sections, tables, constraints and test scenarios it explicitly names. Everything else in v0.1 and v0.2 stands unchanged.</p>
+<div class="callout">
+<p><span class="tag">Scope guard.</span> This document contains no application code and no executable migrations. SQL fragments and index definitions are illustrative design notation, marked ADAPT, exactly as in v0.1 Section E and v0.2. No courier rate, fee, statement format or contract semantic is invented. V2.2.1 formulas, integer BIGINT poisha, per-component half-up rounding, NULL versus verified zero, and the explicit D<sub>c</sub> confirmation-plus-evidence rule are preserved without modification. CL-01 to CL-12 are preserved unless a concrete contradiction is demonstrated - and the one wording contradiction found is corrected in CL-17, with the underlying CL-01 rule unchanged.</p>
+</div>
+<p><span class="tag">What this amendment does</span></p>
+<ul>
+<li>Resolves four follow-up findings, CL-13 to CL-16, each in the established six-part form: original problem, exact change, affected section and table, constraint or transaction-level enforcement, updated test scenario, and a resolved / still-open verdict.</li>
+<li>Provides one implementation clarification, CL-17, on how PostgreSQL actually enforces cross-table consistency - correcting a phrase in v0.2 CL-01 without changing the CL-01 rule itself.</li>
+<li>Adds two tables, and only two, both under CL-16, where the existing schema is shown to be unable to hold the required history. The design total moves from 29 tables to 31.</li>
+<li>Ends with consolidated test changes, a traceability delta, a change log and the remaining blockers.</li>
+</ul>
+<p><span class="tag">Reading rule.</span> Where this amendment and v0.1 or v0.2 disagree, this amendment wins for the named item only. Where it is silent, v0.1 as amended by v0.2 applies.</p>
+<div class="callout blue">
+<p><span class="tag">Gating - unchanged.</span> M1 production implementation remains gated behind the Day 7 and Day 14 market-validation gates, merchant-confirmed courier evidence, a Docker + PostgreSQL verification environment, and explicit production-readiness approval. This amendment authorises none of those steps, and no test in it is claimed to have passed.</p>
+</div>
+<table class="covermeta">
+<tr><td><strong>Baseline</strong></td><td>Database Design Specification v0.1 (36 pages)</td></tr>
+<tr><td><strong>Prior amendment</strong></td><td>Technical Correction Amendment v0.2 (CL-01 to CL-12)</td></tr>
+<tr><td><strong>This amendment</strong></td><td>v0.3 - CL-13 to CL-17</td></tr>
+<tr><td><strong>Financial authority</strong></td><td>Specification V2.2.1 and the P0 final clarification, unchanged</td></tr>
+</table>
+</div>
+<div class="footer"><span>CourierLedger M1 Database Design Specification - Technical Correction Amendment v0.3</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>Amendment at a glance</h2>
+<p>Five items. Four are resolved at design level. One - CL-15 - resolves the tenant-integrity mechanics and deliberately leaves two questions open, because closing them would require a Bangladesh legal and policy decision this review does not have. CL-17 resolves a wording error in v0.2 by naming the enforcement mechanism PostgreSQL actually provides.</p>
+<table>
+<tr><th style="width:11%">ID</th><th style="width:34%">Subject</th><th style="width:29%">Affected v0.1 / v0.2 locations</th><th style="width:26%">Verdict</th></tr>
+<tr><td class="c"><strong>CL-13</strong></td><td>Match decision branching and concurrency: linear supersession chain</td><td>v0.2 CL-03 / CL-07; Section C (<em>shipment_match_decisions</em>); Section E append-only list</td><td>Resolved</td></tr>
+<tr><td class="c"><strong>CL-14</strong></td><td>Idempotency recovery: abandoned claims, leases, crash windows</td><td>v0.2 CL-04; Section C (<em>idempotency_keys</em>); Section H</td><td>Resolved - lease values are operational defaults, marked ADAPT</td></tr>
+<tr><td class="c"><strong>CL-15</strong></td><td>Workspace anonymisation and tenant integrity; shared user accounts</td><td>v0.2 CL-12; Sections C and G; OD-16</td><td>Mechanics resolved; OD-16 still open; new OD-17 opened</td></tr>
+<tr><td class="c"><strong>CL-16</strong></td><td>Immutable bank variance history</td><td>v0.1 D.10 and <em>settlement_batches</em>; v0.2 CL-10</td><td>Resolved - two new tables, justified in the finding</td></tr>
+<tr><td class="c"><strong>CL-17</strong></td><td>Clarification: cross-table consistency is not a CHECK</td><td>v0.2 CL-01, item 4; v0.1 Sections D and H.5</td><td>Resolved as clarification; the CL-01 rule is unchanged</td></tr>
+</table>
+<h3>What changes structurally - and what does not</h3>
+<ul>
+<li><span class="tag">New tables (2, both CL-16):</span> <em>settlement_variance_calculations</em> and <em>settlement_variance_calculation_inputs</em>. Design total: 29 tables under v0.2 becomes 31.</li>
+<li><span class="tag">New columns:</span> a chain link on <em>shipment_match_candidates</em> (CL-13); lease and fencing columns on <em>idempotency_keys</em> (CL-14); an anonymisation timestamp on <em>merchants</em> (CL-15). One column is removed: the stored <em>bank_variance_poisha</em> on <em>settlement_batches</em> (CL-16), replaced by a derived value of the same name and meaning.</li>
+<li><span class="tag">No formula changes.</span> Nothing in this amendment touches C, delta, V<sub>R</sub>, S, V<sub>cond</sub>, V<sub>total</sub>, the identities V<sub>total</sub> = C - delta - V<sub>R</sub> + S and V<sub>cond</sub> = S - V<sub>R</sub>, or the five-value overall status model of CL-01.</li>
+<li><span class="tag">No decision is silently closed.</span> OD-12 stays open. OD-16 stays open and gains the anonymisation mechanics it was waiting for. OD-17 is opened for personal data held inside append-only raw records, where anonymisation and immutability genuinely conflict.</li>
+</ul>
+<div class="callout blue">
+<p><span class="tag">A note on method for CL-13 and CL-15.</span> Both findings offered a tempting mechanism - merging decision branches, and moving retained records into a shared retention workspace. Both are examined in the findings below and rejected, with reasons, in favour of mechanisms that keep the existing invariants intact. Rejecting an option is part of the correction: a future implementer should not have to re-derive why the obvious-looking route was not taken.</p>
+</div>
+</div>
+<div class="footer"><span>CourierLedger M1 Database Design - Amendment v0.3 | Baselines: v0.1 and v0.2</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>CL-13 - Match decision branching and concurrency: one linear chain per candidate</h2>
+<h3>1. Original problem</h3>
+<p>v0.2 CL-03 made match decisions immutable by moving them into the append-only table <em>shipment_match_decisions</em>, with a nullable self-reference, <em>supersedes_decision_id</em>, set when a later decision replaces an earlier one. That solved the mutability problem but left the shape of the decision history unspecified in four ways.</p>
+<ul>
+<li><span class="tag">Branching is representable.</span> Nothing prevents two decisions from both naming the same decision as the one they supersede. The history then forks, each branch with its own latest decision, and the phrase in CL-03 - "the latest decision row for that candidate that has not itself been superseded" - identifies two rows, which may disagree: one ending in confirmed, the other in rejected.</li>
+<li><span class="tag">Cross-candidate supersession is representable.</span> The v0.2 self-reference is a plain foreign key to the decision's own table and does not require the superseded decision to belong to the same candidate: a decision about candidate A can claim to supersede one about candidate B, making per-candidate derivation meaningless.</li>
+<li><span class="tag">Concurrent first decisions have no serialisation rule.</span> CL-03 noted that concurrent first decisions must both be recordable so a conflict is visible, and relied on a deferred constraint trigger aimed at a different problem - a second current confirmation across candidates of the same statement line. Two reviewers deciding the same candidate at the same moment, one confirming and one rejecting, were given no rule for what happens, in what order, and what the candidate's current decision then is.</li>
+<li><span class="tag">Cycles are not addressed.</span> CL-03 does not state whether a supersession cycle (A supersedes B, B supersedes A) is possible or how it is prevented. A derivation that walks a chain containing a cycle does not terminate, so the question is not academic.</li>
+</ul>
+<p>The result is that the most audit-sensitive derivation in the matching design - "what is this candidate's current decision?" - was deterministic only in the easy cases.</p>
+<h3>2. Exact proposed change - definitions</h3>
+<p>Supersedes the decision-history paragraphs of v0.2 CL-03 and CL-07 where they describe derivation and concurrency. The tables and their append-only class are otherwise unchanged. Four terms are defined once:</p>
+<table>
+<tr><th style="width:22%">Term</th><th>Definition</th></tr>
+<tr><td><strong>Root</strong></td><td>A decision row for a candidate whose <em>supersedes_decision_id</em> is NULL. The first decision about that candidate.</td></tr>
+<tr><td><strong>Successor</strong></td><td>Decision X is the successor of decision Y when X.<em>supersedes_decision_id</em> = Y.id. Y is then the <em>predecessor</em> of X.</td></tr>
+<tr><td><strong>Head</strong></td><td>A decision that has no successor. In a well-formed history there is exactly one head per candidate.</td></tr>
+<tr><td><strong>Chain</strong></td><td>The sequence formed by starting at the root and following successor links to the head. A well-formed history for one candidate is exactly one chain containing every decision row for that candidate.</td></tr>
+</table>
+<p><span class="tag">The linear-chain rule.</span> For each candidate, the decision history is a single linear chain: exactly one root, at most one successor per decision, and every decision belonging to the chain. Sections 4 and 5 separate how this is <em>prevented</em> from breaking, how a break is <em>detected</em> if prevention is bypassed, and how a broken history is <em>resolved</em> without editing any row.</p>
+</div>
+<div class="footer"><span>CL-13 - Match decision branching and concurrency</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change (continued) - prevention, derivation, conflict</h3>
+<p><span class="tag">(a) Prevention in normal operation - serialised inserts.</span> Every decision insert runs in a transaction that first takes a transaction-scoped advisory lock keyed on the candidate (design notation, ADAPT: <code>pg_advisory_xact_lock</code> over a hash of the candidate ID, taken after the tenant context is set and before any decision row is read). The lock is used instead of <code>SELECT ... FOR UPDATE</code> on the candidate row for a deliberate reason: the runtime role holds no UPDATE grant on the append-only matching tables under Section E, and row-locking a table requires that privilege. An advisory lock needs no table privilege, does not modify the candidate row, is held only to commit or rollback, and cannot leak through a pooled connection because it is transaction-scoped. Within the lock, the inserting transaction reads the candidate's current head and follows one of two paths:</p>
+<ul>
+<li>If no decision exists, the new decision is inserted as the root, with <em>supersedes_decision_id</em> NULL.</li>
+<li>If a head exists, the new decision <em>must</em> name that head as its predecessor. A transaction that intended to record a first decision but finds, after acquiring the lock, that another decision committed first does not insert a second root: it inserts its decision as the successor of the existing head. Both reviewers' decisions are therefore preserved, in commit order, in one chain - the second decision visibly replaces the first rather than silently racing it.</li>
+</ul>
+<p>The partial unique index in section 4 is the backstop: if lock discipline is ever bypassed by a code defect, a second successor insert fails with a uniqueness violation and its transaction rolls back, rather than committing a fork. A rolled-back attempt of that kind is an application error to be logged and retried through the locked path - it is not a committed decision, and nothing in this design treats it as one.</p>
+<p><span class="tag">(b) Deterministic derivation of the current decision.</span> The current decision for a candidate is derived by the following steps, in order, over that candidate's decision rows. The derivation is a pure function of the stored rows: it uses no timestamps to choose a winner, because two rows can share a timestamp and wall-clock order is not evidence.</p>
+<ol>
+<li>If the candidate has no decision rows, it is <em>undecided</em>. Its match basis remains a proposal only, exactly as in v0.1 D.7.</li>
+<li>Count roots and heads, and walk the chain from each root. If there is exactly one root, exactly one head, and the single walk visits every decision row for the candidate exactly once, the history is well-formed and the <em>current decision is the head</em>.</li>
+<li>If there are multiple heads but <em>every</em> head's decision is <em>rejected</em>, the candidate is <em>closed by unanimous rejection</em>: its current decision is derived as rejected. No branch asserts a confirmation, so no branch can attach reported money to a shipment, and the disagreement among the branches has no financial consequence.</li>
+<li>In every other case of a malformed history - multiple roots with disagreeing heads, or multiple heads of which at least one is confirmed - the candidate is <em>conflicted</em> and has <em>no current decision</em>. A conflicted candidate must not be used by a reconciliation run, must not satisfy the "current derived decision is confirmed" condition in CL-03, and produces a data-quality finding on any result that would otherwise have relied on it, so the shipment is classified <em>needs_review</em> under the CL-01 precedence.</li>
+</ol>
+<p><span class="tag">(c) Conflicting initial decisions - preserved and detected, never overwritten.</span> A conflicting pair of initial decisions can reach the table only outside the locked path: for example through a pre-v0.3 data state, or a migrator-role maintenance write. This amendment does not pretend the lock makes such rows impossible in principle; it specifies what the design does with them. They are preserved exactly as inserted - the append-only grants already make any cleanup by edit or deletion impossible for the runtime role. They are detected in two places: the derivation above returns <em>conflicted</em> rather than picking a winner, and test T-26 requires the detection to be demonstrated on deliberately malformed data written by the migrator role - a property of the derivation, not of a stored flag that could itself be wrong.</p>
+</div>
+<div class="footer"><span>CL-13 - Match decision branching and concurrency</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change (continued) - resolution, and why branches are never merged</h3>
+<p><span class="tag">(d) Resolving a conflicted candidate.</span> Two resolution paths exist, and neither edits history:</p>
+<ul>
+<li><span class="tag">Close it.</span> For each head that is not already a rejection, insert a successor decision of <em>rejected</em>, through the normal locked path, naming that head as predecessor and recording the conflict as the reason. When every head is a rejection, derivation step 3 applies: the candidate is closed, permanently, as rejected. This is always available and is the correct outcome when the disagreement itself makes the candidate untrustworthy.</li>
+<li><span class="tag">Supersede the candidate, not the branch.</span> If the match itself is still believed correct, a new candidate row is created for the same statement line, shipment and match basis, carrying a new nullable column <em>prior_candidate_id</em> - a composite self-referencing foreign key to the conflicted candidate, same tenant - recording that this candidate replaces it. Decisions about the new candidate start a fresh, well-formed chain. The conflicted candidate and its full branching history remain stored and queryable. Nothing in Section C makes (statement line, shipment, match basis) unique, so the successor candidate is representable without weakening any existing constraint; its <em>rank</em> orders it after the candidate it replaces.</li>
+</ul>
+<p><span class="tag">(e) Why merging branches is rejected.</span> The alternative - a resolution decision that supersedes two heads at once, joining the branches - was considered and rejected. A single <em>supersedes_decision_id</em> column cannot express a two-predecessor join; expressing it honestly would need a link table and would change the history from a chain into a directed graph, with a derivation rule to match, for the sake of an anomaly that the locked path already prevents in normal operation. Quarantining the candidate and, where needed, superseding it keeps one simple invariant - one candidate, one chain - that every reader, query and test can rely on.</p>
+<p><span class="tag">(f) The statement-line level is a separate question, with a simpler answer.</span> CL-03's deferred constraint trigger concerned a different conflict: two <em>different candidates</em> for the same statement line both currently confirmed. That conflict needs no quarantine mechanism, because each candidate's own chain can advance independently: superseding one candidate's confirmed head with a rejection leaves exactly one currently confirmed candidate, and the line-level invariant holds again. The trigger specified in CL-03 is retained as the commit-time backstop for that invariant, and CL-17 below classifies it correctly as a deferred constraint trigger. The derivation of "the confirmed candidate for a line" is then: the unique candidate whose derived current decision is confirmed; if two qualify, the trigger has been bypassed, the line is treated as ambiguous under v0.1 D.7, and no automatic choice is made.</p>
+<p><span class="tag">(g) Cycles cannot occur.</span> The proof is short and rests on immutability rather than on any check. A cycle would require some decision row to name, directly or through a chain, itself as a predecessor. A row's <em>supersedes_decision_id</em> is set only at insert, can reference only a row that already exists (the foreign key requires it), and can never afterwards be changed, because the table is append-only with no UPDATE grant or policy for the runtime role (Section E, restated by CL-03). Every link therefore points from a later-inserted row to a strictly earlier-inserted row, so following predecessor links strictly decreases insertion order and must end at a root. No cycle can be constructed, and no cycle-detection code or constraint is needed.</p>
+<h3>3. Affected section and table</h3>
+<p>Section C, table <em>shipment_match_decisions</em> (self-reference strengthened; no new columns) and table <em>shipment_match_candidates</em> (one new nullable column, <em>prior_candidate_id</em>); Section B ERD matching sub-diagram (self-reference on candidates); v0.2 CL-03 item 4 and the CL-07 mirror wording (derivation and concurrency paragraphs superseded); Section E append-only list (unchanged membership); Section I test T-26 (new, section 5). The audit-mirror rule of CL-07 is unchanged: every decision insert still writes its <em>audit_logs</em> row in the same transaction, and the decision table remains the source of truth if the two ever differ.</p>
+</div>
+<div class="footer"><span>CL-13 - Match decision branching and concurrency</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>4. Constraint or transaction-level enforcement</h3>
+<ul>
+<li><span class="tag">At most one successor per decision (no branching).</span> Partial unique index (ADAPT): <code>UNIQUE (merchant_id, supersedes_decision_id) WHERE supersedes_decision_id IS NOT NULL</code> on <em>shipment_match_decisions</em>. Roots are exempt by the predicate - the index governs successors, not roots - which is what allows the anomalous multi-root state of section 2(c) to be <em>stored and detected</em> rather than silently rejected by a constraint the audit then cannot see.</li>
+<li><span class="tag">Supersession stays inside one candidate and one tenant.</span> Add <code>UNIQUE (merchant_id, candidate_id, id)</code> to <em>shipment_match_decisions</em> and replace the plain self-reference with a composite foreign key: <code>(merchant_id, candidate_id, supersedes_decision_id)</code> references <code>(merchant_id, candidate_id, id)</code>. A decision can now supersede only a decision about the same candidate in the same workspace, enforced by the database rather than by insert-path discipline. A CHECK keeps <em>supersedes_decision_id</em> different from the row's own <em>id</em> as a same-row guard, although the cycle proof in section 2(g) already makes self-reference unreachable in practice.</li>
+<li><span class="tag">Serialisation.</span> The candidate advisory lock described in section 2(a) is a mandatory part of the decision-insert transaction, stated here as a design invariant in the same terms CL-11 used for tenant context: decision inserts pass through one component that takes the lock, and no repository method inserts a decision without it. The unique index above is the database backstop if that invariant is violated.</li>
+<li><span class="tag">Well-formedness at commit.</span> Chain-shape rules that span rows - one root, chain visits every row - are cross-row invariants and are therefore <em>not</em> expressed as CHECKs (see CL-17). They are verified by a deferred constraint trigger (ADAPT) on <em>shipment_match_decisions</em> that, at commit, re-derives the candidate's state using section 2(b) and rejects the transaction if it would leave a <em>newly written</em> history malformed through the application's own path. Rows written by the migrator role outside that path are the detection case of T-26, not a state the trigger is asked to repair: triggers reject transactions; they do not rewrite history.</li>
+<li><span class="tag">Immutability unchanged.</span> No UPDATE or DELETE policy or grant is added for either matching table. The lock, the indexes and the trigger all operate on inserts only.</li>
+</ul>
+</div>
+<div class="footer"><span>CL-13 - Match decision branching and concurrency</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>5. Updated test scenario</h3>
+<p><span class="tag">T-26 (new) - Match decision chain integrity and concurrency.</span> (a) Through the locked path, confirm a candidate, then supersede with a rejection, then supersede with a confirmation: exactly one chain of three rows exists, the derived current decision is the final confirmation, and T-21's assertions still hold. (b) Two concurrent transactions decide the same undecided candidate, one confirming and one rejecting: both decisions are committed, in one chain, in commit order; the derived current decision is the second transaction's decision; no second root exists. (c) Attempt, bypassing the application path as the migrator role, to insert a second successor of an existing decision: rejected by the partial unique index. (d) Attempt to insert a decision superseding a decision belonging to a different candidate, and separately to one in a different workspace: both rejected by the composite foreign key. (e) Insert two roots for one candidate as the migrator role, one ending confirmed and one rejected: the derivation reports the candidate conflicted with no current decision, a run that would rely on it classifies the shipment <em>needs_review</em> with a data-quality finding, and neither row has been altered. (f) Close the conflicted candidate by rejecting every non-rejected head: the derivation now reports rejected under the unanimous-rejection rule. (g) Create a successor candidate linked by <em>prior_candidate_id</em>, confirm it through the locked path, and confirm the run snapshot records the new candidate's decision row ID while the conflicted candidate's history remains fully queryable.</p>
+<h3>6. Status</h3>
+<div class="verdict">
+<p><span class="tag">Resolved.</span> The decision history is now a defined linear chain: branching is prevented by a unique index, cross-candidate links are prevented by a composite foreign key, concurrent inserts are serialised by a transaction-scoped lock chosen to respect the append-only grant model, current-decision derivation is deterministic in every state including malformed ones, cycles are shown to be structurally impossible, and conflicts are preserved, detected and resolvable without a single UPDATE or DELETE. Immutable decision history - the point of CL-03 and CL-07 - is not weakened; it is what makes the cycle proof and the conflict-preservation rule possible.</p>
+</div>
+</div>
+<div class="footer"><span>CL-13 - Match decision branching and concurrency</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>CL-14 - Idempotency recovery: abandoned claims, leases and crash windows</h2>
+<h3>1. Original problem</h3>
+<p>v0.2 CL-04 established one authoritative idempotency store, <em>idempotency_keys</em>, with a lifecycle of <em>in_progress</em>, <em>completed</em> and <em>failed</em>: the key row is claimed in its own short transaction, the work transaction on success marks it completed and sets the typed result reference, and a rolled-back work transaction leaves the key to be marked failed by a compensating update so that a same-hash retry may re-execute. That design answers replay and hash-conflict questions, but it leaves the failure it most needs to survive - a process that stops mid-operation - unspecified in three ways.</p>
+<ul>
+<li><span class="tag">A crashed claim is indistinguishable from a running one.</span> If the worker crashes after claiming a key, or crashes before the compensating failed-marking runs, the row sits at <em>in_progress</em> indefinitely. CL-04 gives no rule for when another worker may treat the claim as abandoned. Every later retry with that key then faces a row that is neither completed (so there is no result to return) nor failed (so re-execution is not authorised). The operation is wedged - safely, but permanently.</li>
+<li><span class="tag">Reclaiming without ownership invites the duplicate the table exists to prevent.</span> The obvious fix - "let a retry take over a stale in-progress row" - creates the opposite defect if it is not fenced: the original worker may not be dead, only slow or partitioned. If a second worker re-executes while the first is still working, and the first then completes, two import batches or two runs can be created for one key. For run creation, CL-05's <em>UNIQUE (merchant_id, run_hash)</em> would still collapse identical inputs to one run; for import creation there is no equivalent content-level backstop stated. An unfenced takeover is therefore not an acceptable recovery rule.</li>
+<li><span class="tag">The crash window between work and key completion is unexamined.</span> CL-04's wording puts the completion update in "the work transaction", but does not state the requirement strictly enough to reason about: if the work and the completion were ever in separate transactions, a crash between them would leave a committed result that no key points to, and a retry would create a second one. Whether that window exists is a property of the transaction boundary, and the amendment must close it explicitly rather than assume it away.</li>
+</ul>
+</div>
+<div class="footer"><span>CL-14 - Idempotency recovery</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change - lease, token and attempt columns</h3>
+<p>Clarifies and extends v0.2 CL-04, item 2 and item 4. The table remains the sole idempotency owner; the operation list, typed result references, uniqueness and request-hash rules are unchanged. Four columns are added to <em>idempotency_keys</em>:</p>
+<table>
+<tr><th style="width:30%">Column</th><th style="width:18%">Type / null</th><th>Meaning</th></tr>
+<tr><td><code>lease_expires_at</code></td><td>TIMESTAMPTZ, NULL</td><td>End of the current claim's ownership window. Set at every claim and reclaim; NULL on completed and failed rows. A claim is <em>live</em> while this is in the future and <em>abandoned</em> once it has passed.</td></tr>
+<tr><td><code>claim_token</code></td><td>UUID, NULL</td><td>A fresh random token generated at every claim and reclaim - the fencing token for this attempt. Only the holder of the current token may complete or fail the key. Holds no credential and no user information.</td></tr>
+<tr><td><code>attempt_count</code></td><td>INTEGER, NOT NULL, DEFAULT 0, CHECK &gt;= 0</td><td>Number of times the key has been claimed. Incremented atomically by the claim or reclaim that wins. Bounds recovery work: see the attempt cap in section 2(g).</td></tr>
+<tr><td><code>claimed_by_instance</code></td><td>TEXT, NULL</td><td>Opaque identifier of the application instance holding the claim, for operational diagnosis only. Not an actor identity, not a credential, and never used for authorisation - the token, not the label, fences the claim.</td></tr>
+</table>
+<p><span class="tag">Two different clocks, never conflated.</span> CL-04's <em>expires_at</em> remains the <em>replay horizon</em>: how long a completed result may be returned for a replayed key, after which the row may be purged by the maintenance role and the key string claimed fresh. The new <em>lease_expires_at</em> is the <em>ownership horizon</em>: how long one worker may hold an unfinished claim. The lease is measured in minutes; the replay horizon is the 24-hour design default set by CL-04. Reclaiming a lease never extends <em>expires_at</em>, and <em>expires_at</em> passing never, by itself, authorises re-execution of an operation whose status is completed - it ends the replay guarantee, which is a different statement, addressed in item (f) below.</p>
+</div>
+<div class="footer"><span>CL-14 - Idempotency recovery</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change (continued) - claim, reclaim, completion</h3>
+<p><span class="tag">(a) Claim.</span> As in CL-04, the key row is inserted in its own short transaction, now with status <em>in_progress</em>, <em>attempt_count</em> = 1, a fresh <em>claim_token</em> and <em>lease_expires_at</em> set to the claim time plus the operation's lease duration. Lease durations are operational configuration, not business rules: the design default is 5 minutes for <em>import_create</em> and 10 minutes for <em>run_create</em> (ADAPT - to be set from measured operation times in the verification environment, and always comfortably longer than the operation's normal duration and far shorter than the replay horizon). A worker that is still legitimately working as its lease nears expiry may extend the lease by a conditional update that matches its own current <em>claim_token</em>; a worker whose token no longer matches cannot extend, complete or fail the key, under any circumstances.</p>
+<p><span class="tag">(b) Reclaim of an abandoned claim.</span> A retry that finds its key at <em>in_progress</em> with an expired lease attempts exactly one atomic, conditional update (design notation, ADAPT): set a fresh <em>claim_token</em>, a new <em>lease_expires_at</em>, increment <em>attempt_count</em> and record the reclaiming instance, <em>where</em> the row's key, operation and <em>request_hash</em> match the retry, its status is <em>in_progress</em>, and its lease has expired. The database executes that update against at most one row, so among any number of concurrent reclaimers exactly one wins; the losers observe the new live lease and behave as ordinary concurrent retries - they wait within a bounded period or return the operation's in-progress state to the caller, and they do not execute the work. A retry whose hash differs from the stored hash is a conflict error in every state of the row - live, abandoned, failed or completed - exactly as CL-04 requires; abandonment never launders a hash conflict into a fresh execution.</p>
+<p><span class="tag">(c) Completion is in the work transaction - the crash window is closed, not managed.</span> This amendment makes explicit what CL-04 implied: the update that marks the key <em>completed</em> and sets its typed result reference is the <em>last write of the same transaction that creates the result</em>, and that update is conditional on the row still carrying the worker's <em>claim_token</em> and status <em>in_progress</em>. If the conditional update affects zero rows - because the lease was reclaimed and the token rotated - the work transaction must roll back in full, discarding the result it created. The consequences are strict: a result and its key completion commit together or not at all, so no committed result can exist without its key pointing at it; and a displaced ("zombie") worker cannot commit duplicate work, because its completion is the one write it is no longer able to make, and that write gates its whole transaction.</p>
+<p><span class="tag">(d) Failure.</span> The CL-04 compensating update is retained and fenced in the same way: a worker that knows its work has rolled back marks the key <em>failed</em>, conditional on its own token, clearing the lease. A <em>failed</em> key may be re-claimed by a same-hash retry immediately, without waiting for any lease. If the worker crashed before it could mark failure, the lease expiry path of (b) reaches the same outcome more slowly. Both paths converge on one rule: re-execution is authorised either by a failed row or by an expired lease - never by the mere passage of an arbitrary wait, and never by a second live claim.</p>
+<h3>The four crash windows, stated individually</h3>
+<table>
+<tr><th style="width:26%">Window</th><th>Outcome under this design</th></tr>
+<tr><td><strong>W1.</strong> Crash after the claim commits, before work begins</td><td>No result exists; the key is <em>in_progress</em> under a lease that will expire. A same-hash retry then reclaims under (b) and executes the work once.</td></tr>
+<tr><td><strong>W2.</strong> Crash during the work transaction</td><td>The work transaction rolls back, so no partial result exists. Recovery proceeds as W1: lease expiry, reclaim, one execution.</td></tr>
+<tr><td><strong>W3.</strong> Crash after work commits, before the caller receives the response</td><td>There is no "after work commits but before the key completes" state, by rule (c): they are one commit. The retry finds a <em>completed</em> key and receives the original typed result reference. No re-execution.</td></tr>
+<tr><td><strong>W4.</strong> Crash before the compensating failed-marking</td><td>The key remains <em>in_progress</em> until its lease expires, then follows (b). Slower than an explicit failure, identical in outcome.</td></tr>
+</table>
+</div>
+<div class="footer"><span>CL-14 - Idempotency recovery</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change (continued) - replay, expiry and the attempt cap</h3>
+<p><span class="tag">(e) Completed replay is unchanged, and total.</span> A retry with the same key, operation and hash against a <em>completed</em> row returns the typed result reference and executes nothing, at any point before <em>expires_at</em> - including a retry that arrives after one or more abandoned-claim episodes earlier in the key's life. The history of claims is operational detail; the completed row is the answer.</p>
+<p><span class="tag">(f) What expiry does and does not end.</span> After <em>expires_at</em>, CL-04 permits the maintenance role to purge the key row and the same key string to be claimed fresh - that is, the deduplication guarantee for that key string ends. Two existing safeguards bound the risk, and this amendment relies on them rather than inventing a third: for <em>run_create</em>, CL-05's <em>UNIQUE (merchant_id, run_hash)</em> deduplication is content-based and has no expiry, so a post-expiry duplicate run request still resolves to the one existing run; for <em>import_create</em>, the file-level hash detection in Section C (<em>file_objects</em> hash per merchant) is the corresponding second layer, and an import retry after key expiry must be checked against it before a new batch is created. What expiry must never do is delete or alter the created batch or run themselves - CL-04 already states this, and it is repeated here because recovery logic is exactly where such a cleanup would be attempted.</p>
+<p><span class="tag">(g) Attempt cap.</span> Recovery must not loop forever on an operation that crashes every worker that touches it. When a claim or reclaim would raise <em>attempt_count</em> above the operation's configured cap (design default 5, ADAPT), the row is instead moved to <em>failed</em>, its lease cleared, and further retries with the same key return an explicit terminal-failure response directing the caller to investigate and, if appropriate, submit under a new key. The cap is enforced inside the same conditional update, so concurrent reclaimers cannot race past it. A capped key is a visible operational event, recorded in the application log outside the tenant tables in the manner of CL-11 - a repeatedly crashing financial operation is something operators must see, not something the table should quietly absorb.</p>
+</div>
+<div class="footer"><span>CL-14 - Idempotency recovery</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>3. Affected section and table</h3>
+<p>Section C, table <em>idempotency_keys</em> (four columns added; status list unchanged - <em>abandoned</em> is a derived condition, <em>in_progress</em> with an expired lease, not a fourth status, so no CHECK list changes and no stored flag can disagree with the clock); Section H (the shared idempotency component of CL-04 gains the claim, reclaim and completion protocol above); Section I test T-10 (assertions extended by T-27, section 5). Sections C and H of v0.1 are affected only through the CL-04 supersession chain. No other table changes: in particular, no lease or token column appears on <em>import_batches</em> or <em>reconciliation_runs</em>, preserving CL-04's single-owner rule.</p>
+<h3>4. Constraint or transaction-level enforcement</h3>
+<ul>
+<li><span class="tag">Uniqueness remains the arbiter of first claim.</span> <em>UNIQUE (merchant_id, operation, idempotency_key)</em> is unchanged; the losing claimant of a race sees the existing row and follows the reclaim, wait or replay path - no check-then-insert in application code is relied on, as CL-04 already required.</li>
+<li><span class="tag">Reclaim and completion are single conditional updates.</span> Each is one UPDATE whose predicate includes the expected status, the lease condition where relevant, and - for completion and failure - the caller's <em>claim_token</em>. PostgreSQL's row locking makes each such update atomic against concurrent updaters of the same row: exactly one reclaim wins, and a completion by a displaced token matches zero rows. These are transaction-level mechanisms, stated as such; no CHECK constraint is claimed to perform them (see CL-17).</li>
+<li><span class="tag">State-to-column consistency is row-local and is a CHECK.</span> <em>completed</em> requires <em>completed_at</em> NOT NULL, the operation's typed result reference NOT NULL (per CL-04's existing CHECK) and <em>lease_expires_at</em> NULL; <em>in_progress</em> requires <em>lease_expires_at</em> NOT NULL and all result references NULL; <em>failed</em> requires <em>lease_expires_at</em> NULL and all result references NULL. Each condition inspects only the row itself, which is precisely what a CHECK may do.</li>
+<li><span class="tag">RLS and roles unchanged.</span> The table remains tenant-owned, RLS ENABLE + FORCE, with the single sanctioned UPDATE identified in CL-04 - now understood to be exactly the claim, reclaim, completion and failure updates above, all tenant-scoped and predicate-guarded. Purge after expiry remains a maintenance-role operation, never a runtime grant.</li>
+</ul>
+</div>
+<div class="footer"><span>CL-14 - Idempotency recovery</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>5. Updated test scenario</h3>
+<p><span class="tag">T-27 (new) - Idempotency recovery.</span> T-10's assertions (a) to (g) are retained, then: (h) Claim a key, simulate a crash before work begins (W1), advance past the lease, and retry with the same hash: the retry reclaims, <em>attempt_count</em> becomes 2, the token differs from the original, and exactly one result is created. (i) Repeat the crash during the work transaction (W2): no partial batch or run exists at any point. (j) Commit the work, then simulate the caller never receiving the response (W3): the retry returns the original result reference and creates nothing. (k) Zombie fencing: reclaim an apparently abandoned key, then have the original worker attempt its conditional completion with the old token: it matches zero rows, its transaction rolls back, and exactly one result exists. (l) Race two reclaimers against one expired lease: exactly one wins; the loser executes nothing. (m) Attempt to reclaim or replay an abandoned key with a different hash: conflict error, no execution, in every row state. (n) Drive a key to the attempt cap with repeated crashes: the row ends <em>failed</em>, further same-key retries return the terminal-failure response, and a submission under a new key succeeds normally. (o) After a key expires and is purged, resubmit an identical run request under a fresh key: CL-05 deduplication still returns the single existing run.</p>
+<h3>6. Status</h3>
+<div class="verdict">
+<p><span class="tag">Resolved at design level.</span> Every state a key row can be left in by a crash now has a defined, fenced recovery path, and the no-duplicate guarantee rests on mechanisms - unique constraint, atomic conditional updates, token fencing and same-transaction completion - rather than on workers being well-behaved. The lease durations and attempt cap are operational defaults marked ADAPT; setting their final values from measured behaviour in the verification environment is implementation tuning, not an open design decision, and does not join the blocker list.</p>
+</div>
+</div>
+<div class="footer"><span>CL-14 - Idempotency recovery</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>CL-15 - Workspace anonymisation and tenant integrity: the tombstone merchant</h2>
+<h3>1. Original problem</h3>
+<p>v0.2 CL-12 specified a two-stage model - closure, then erasure - and said financial history would be "retained in anonymised-tenant form - merchant identity link severed, amounts and rule snapshots intact". That sentence contains an unspecified mechanism, and each obvious way of implementing it breaks a different part of the design:</p>
+<ul>
+<li><span class="tag">Deleting the merchant row</span> is rejected by the database itself: every financial table references <em>merchants</em> through foreign keys that CL-12 confirmed as ON DELETE RESTRICT. The row cannot go while history exists - which is the point of the restriction.</li>
+<li><span class="tag">"Severing the identity link"</span> by rewriting <em>merchant_id</em> on retained rows would require UPDATEs across runs, results, findings, fee lines, statement lines and settlement records - tables whose defining property is that the runtime role cannot update them at all, and whose snapshots are supposed to be the historical fact. It would also falsify those rows: a run would claim to belong to a workspace it never belonged to.</li>
+<li><span class="tag">Anonymising only the merchant's name</span> leaves the people unanswered. A workspace's members are <em>users</em> rows, and a user is not owned by a workspace: the same person may hold memberships in several workspaces. CL-12 said "user personal fields are anonymised" in the context of one workspace's erasure, without stating what happens when that user is an active member of another workspace that is not closing. Taken literally, closing one workspace could erase the sign-in identity a person still uses daily in another.</li>
+<li><span class="tag">RLS has no stated post-anonymisation behaviour.</span> Retained rows carry a <em>merchant_id</em> that no living session can legitimately assert once memberships have ended, and CL-12 did not state what that means for reachability or lawful export.</li>
+</ul>
+<h3>2. Exact proposed change - the tombstone merchant record</h3>
+<p>Clarifies v0.2 CL-12 Stage 2 and Section G. The central decision is this: <span class="tag">the anonymised retention workspace is the same merchant row, anonymised in place.</span> Anonymisation is an operation on identity-bearing fields of mutable identity-class rows. It is never an operation on <em>merchant_id</em>, and it never touches a financial row. Stage 2 for a closed workspace performs, in one migrator-role maintenance transaction:</p>
+<ul>
+<li><span class="tag">On <em>merchants</em>:</span> <em>name</em> is replaced with a non-identifying label of the form "Anonymised workspace" plus an opaque token that encodes no personal data; <em>trading_name</em> is set NULL; the new column <em>anonymised_at</em> (TIMESTAMPTZ, NULL) is set. The row's <em>id</em> - the value every <em>merchant_id</em> in the database references - is unchanged, and <em>status</em> remains <em>closed</em>. Anonymising the business name is mandatory, not optional: for a sole proprietor the trading name may itself be personal data, and a design that scrubs the person but keeps the shop name has not anonymised anything.</li>
+<li><span class="tag">On <em>merchant_courier_accounts</em> of that workspace:</span> <em>merchant_account_ref</em> is set NULL and <em>display_label</em> replaced or nulled where it contains identifying text. Courier account references are the merchant's identifiers with third parties and have no place in retained history; the internal courier identity survives through <em>courier_id</em>, which is global reference data and identifies no merchant.</li>
+<li><span class="tag">On <em>file_objects</em> and stored bytes:</span> as CL-12 already specified - bytes are purged, <em>purged_at</em> is set, and the metadata row with its hash remains so historical references still resolve.</li>
+<li><span class="tag">On financial and append-only tables:</span> nothing. No UPDATE, no DELETE, no <em>merchant_id</em> change. Runs, results, findings, fee lines, statement lines, import rows, allocations and - under CL-16 below - variance calculations remain byte-identical, with amounts, snapshots and rule provenance intact.</li>
+</ul>
+<p>The result is a <em>tombstone merchant</em>: a tenant root that still exists for every foreign key that needs it, still scopes its retained history under its own original <em>merchant_id</em>, and no longer identifies anyone.</p>
+</div>
+<div class="footer"><span>CL-15 - Workspace anonymisation and tenant integrity</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change (continued) - options rejected, and the shared user rule</h3>
+<p><span class="tag">Why not a shared anonymised retention workspace.</span> The alternative considered - one special "retention" merchant to which every closed workspace's financial rows are transferred - is rejected for four concrete reasons. First, the transfer is the forbidden rewrite of <em>merchant_id</em> on append-only rows described above. Second, it merges tenants: histories of unrelated businesses would come to share one <em>merchant_id</em>, ending the one-workspace-one-tenant correspondence the whole of Section E rests on. Third, it corrupts scoped uniqueness: run deduplication is <em>UNIQUE (merchant_id, run_hash)</em> (CL-05), and two transferred workspaces could present the same hash under the retention tenant and collide. Fourth, it makes isolation unprovable for the retained data, because an RLS context asserted for the retention tenant would expose every transferred workspace at once. The tombstone keeps each workspace's history under its own key, which is what "tenant isolation for retained records" has to mean.</p>
+<p><span class="tag">The shared user rule.</span> User anonymisation is governed by the user's position across <em>all</em> workspaces, never by one workspace's closure alone. The rule is deterministic:</p>
+<ol>
+<li>When a workspace is anonymised, its <em>merchant_memberships</em> rows - already ended at closure under CL-12 Stage 1 - are left as historical records of role and period. A membership row carries no personal fields beyond its foreign keys, so it needs no scrubbing; the identity question is entirely about the <em>users</em> row it points to.</li>
+<li>A <em>users</em> row is anonymised - <em>email</em> replaced with a non-routable anonymised placeholder unique to that row, <em>display_name</em> set NULL, credential material removed, <em>status</em> set to <em>closed</em> - <em>only if</em> the user has no membership in <em>active</em> or <em>invited</em> state in any workspace, and no live session. The eligibility test is evaluated globally at the moment Stage 2 runs, not inferred from the closing workspace.</li>
+<li>If the user has any active membership elsewhere, their <em>users</em> row is not touched in any way by this workspace's anonymisation. They keep signing in; the other workspace's audit attributions keep resolving; nothing about them is recorded in the closing workspace's anonymisation audit beyond the fact that a member's identity was retained because of other memberships - a fact recorded without naming the other workspace.</li>
+<li>Where a <em>users</em> row is anonymised, it is anonymised <em>in place</em> and the row remains: <em>actor_user_id</em>, <em>created_by_user_id</em>, <em>decided_by_user_id</em> and similar attributions across retained history continue to reference an existing row, preserving referential integrity and provenance, while the row no longer identifies a person. A UUID that resolves to an anonymised user is a pseudonymous attribution, and the design says so plainly rather than claiming the attribution has been erased.</li>
+</ol>
+<p><span class="tag">Worked example.</span> A person is Owner of workspace A and a member of workspace B, both active. A closes and completes Stage 1. At Stage 2, A's tombstoning proceeds in full - business identity scrubbed, courier references nulled, file bytes purged - but the eligibility test finds an active membership in B, so the <em>users</em> row is untouched and the person signs in to B the next day exactly as before. If B later closes and is anonymised in its turn, the test then finds no active membership anywhere, and only at that point is the <em>users</em> row anonymised.</p>
+<h3>2. Exact proposed change (continued) - isolation and export after anonymisation</h3>
+<p><span class="tag">Tenant isolation is preserved, and is in fact at its strongest.</span> Retained rows keep their original <em>merchant_id</em>; RLS remains ENABLE + FORCE on every tenant table; and tenant context can only be set from an authenticated session's resolved <em>active</em> membership (CL-11). A tombstoned workspace has no active memberships, so no application session can legitimately assert its context: through the runtime role the retained history is unreachable, while remaining physically intact and internally consistent. Isolation between two tombstoned workspaces is the same isolation as between two live ones - distinct keys, distinct policy scope - because anonymisation changed no key.</p>
+</div>
+<div class="footer"><span>CL-15 - Workspace anonymisation and tenant integrity</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<p><span class="tag">Historical export has two windows, and they must not be confused.</span> The merchant-facing export - the owner's complete record of their own history - belongs to Stage 1: the workspace is closed but not yet anonymised, still readable by its former Owner for export, as CL-12 specified. That is the only window in which an identified export exists, and the length of the grace window before Stage 2 remains the open policy question in OD-16. After anonymisation, the only exports the design permits are anonymised ones, produced under the migrator-role maintenance procedure rather than the application: amounts, dates, statuses, findings and rule snapshots keyed by the tombstone's <em>merchant_id</em>, containing no merchant or user identity. Such an export must exclude the raw source payloads discussed immediately below.</p>
+<div class="callout">
+<p><span class="tag">The one conflict this amendment does not resolve: personal data inside append-only raw records.</span> Anonymising identity rows does not reach personal data that may exist <em>inside</em> retained source data. <em>import_rows.raw_values</em> preserves each uploaded row verbatim, by design, and courier statement files may contain recipient names, phone numbers or addresses as supplied in the source file; statement lines and order references can carry merchant-supplied identifiers with similar content. <em>orders</em> are mutable-class rows whose identifying fields can be scrubbed in Stage 2. But <em>import_rows</em> and <em>statement_lines</em> are append-only precisely so that raw and normalised values can never be rewritten (v0.1 D.3). Scrubbing them would break the raw-preservation invariant; deleting them would break referential integrity for the runs built on them; retaining them unchanged means retained history can still contain third-party personal data after the merchant's own identity is gone. This amendment does not pick a winner among anonymisation, immutability and retention. The question is opened as OD-17 for the same Bangladesh legal and policy review as OD-16, with the interim design position stated honestly: until OD-17 is decided, retained raw records of a tombstoned workspace are sealed - unreachable through the runtime role, excluded from anonymised exports, and accessed only under the break-glass procedure contemplated in Section E.5, which is itself unauthorised until production-readiness approval.</p>
+</div>
+<h3>3. Affected section and table</h3>
+<p>Section G (workspace deletion and user deletion subsections - the CL-12 two-stage model gains the mechanics above); Section C, table <em>merchants</em> (one column added, <em>anonymised_at</em>; the v0.1 <em>closed_at</em> column and status list are unchanged); Section C, tables <em>users</em> and <em>merchant_courier_accounts</em> (Stage 2 field treatment specified); Section J (OD-16 clarified, new OD-17); Section I test T-25 (revised) and T-30 (new). No financial table is affected in any way - which is the point of the design.</p>
+</div>
+<div class="footer"><span>CL-15 - Workspace anonymisation and tenant integrity</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>4. Constraint or transaction-level enforcement</h3>
+<ul>
+<li><span class="tag">Referential integrity needs no new mechanism - it is never put at risk.</span> Because no row is deleted and no key value changes, every existing foreign key, composite tenant key and ON DELETE RESTRICT rule continues to hold before, during and after anonymisation. The hard DELETE rejection asserted in T-25 remains the database's guarantee that this path is the only path.</li>
+<li><span class="tag">Stage 2 is one maintenance transaction per workspace, under the migrator role only.</span> It updates exactly the identity-bearing mutable rows listed in section 2, sets <em>anonymised_at</em>, and writes its audit record - recording which categories of field were anonymised and when, never the erased values, as CL-12 required. The runtime role receives no new grant of any kind: a closed workspace's INSERT-blocking write policies (CL-12) remain in force, and anonymisation is not an application operation.</li>
+<li><span class="tag">Closed means closed, permanently, at the database.</span> Once <em>anonymised_at</em> is set, the workspace cannot be re-opened: the CL-12 grace-window re-open applies only between closure and anonymisation. This is enforced by the same status-and-policy pattern as closure (ADAPT) and asserted in T-25.</li>
+<li><span class="tag">User eligibility is a transaction-level rule.</span> The global-membership test spans tables and therefore cannot be a CHECK (see CL-17); it is performed inside the Stage 2 maintenance transaction, which takes the relevant membership rows under lock so a concurrent invitation or reactivation of the same user in another workspace cannot race the anonymisation, and it is backstopped by the T-30 assertions.</li>
+</ul>
+<h3>5. Updated test scenario</h3>
+<p><span class="tag">T-25 (revised) - Workspace closure, tombstoning and retention.</span> CL-12's assertions are retained (closure blocks new imports and runs at the database level; historical runs remain readable and byte-identical; hard DELETE of the merchant row is rejected), then Stage 2 is executed. Expected: <em>merchants.name</em> and <em>trading_name</em> no longer identify the business; <em>anonymised_at</em> is set; courier account references are NULL; file bytes are purged with <em>purged_at</em> set; every financial row is byte-identical to its pre-anonymisation state, including <em>merchant_id</em>; no reconciliation identity (V<sub>total</sub> = C - delta - V<sub>R</sub> + S) is affected on any retained result; a runtime-role session can read none of the tombstoned workspace's rows; and re-opening the workspace is rejected.</p>
+<p><span class="tag">T-30 (new) - Shared user across workspaces.</span> Create user U as Owner of workspace A and active member of workspace B, with audit-attributed actions in both. Close and anonymise A. Expected: U's <em>users</em> row is unchanged - email, display name and credential material intact; U can still authenticate and B's data is fully accessible under B's context; A's retained audit rows still resolve their actor reference to U's row; A's tombstone is complete. Then close and anonymise B, leaving U with no active membership anywhere: the <em>users</em> row is now anonymised in place, the row itself still exists, and historical actor references in both workspaces still resolve - to an anonymised user, not to a dangling key and not to an identifiable person.</p>
+<h3>6. Status</h3>
+<div class="verdict">
+<p><span class="tag">Partially resolved - mechanics resolved, two policy questions open.</span> The apparent conflict between retention, anonymisation, mandatory tenant keys, RLS and shared accounts is resolved at the level this document owns: nothing has to move, merge or be rewritten for a workspace to stop identifying anyone while its financial history stays intact, isolated and exportable in anonymised form, and no shared user can lose their identity to another workspace's closure. What remains open is not mechanics: the grace-window length, the financial retention period and the erasure-versus-retention conflict rule stay in OD-16, and the treatment of third-party personal data inside append-only raw records is opened as OD-17. Both require Bangladesh legal and policy review; both block production launch, not design review.</p>
+</div>
+</div>
+<div class="footer"><span>CL-15 - Workspace anonymisation and tenant integrity</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>CL-16 - Immutable bank variance history: a calculation record, not a column</h2>
+<h3>1. Original problem</h3>
+<p>In v0.1, bank variance lives in exactly one place: <em>settlement_batches.bank_variance_poisha</em>, a single nullable BIGINT column on a table whose status and totals are otherwise mutable. v0.2 CL-10 then defined what a reversal does to a computed variance - the batch "no longer reports a current bank variance (reported as NULL) while the historical computation remains in the audit record", and a re-completion "computes a fresh variance". Taken together, the two documents require a history that the schema cannot hold:</p>
+<ul>
+<li><span class="tag">One column cannot store a sequence.</span> The first variance is overwritten by the fresh variance after re-allocation, or cleared towards NULL after a reversal. Either way the earlier computed value - a financial figure the merchant may already have seen and acted on - is gone from structured storage at exactly the moment a dispute would ask for it.</li>
+<li><span class="tag">The audit record is not a substitute.</span> CL-10's fallback is <em>audit_logs.detail</em>, a JSONB payload. It has no typed amount column, no foreign key to the receipts or allocations the calculation used, no uniqueness or sequence, and no constraint that a variance-shaped entry even exists for a given computation. Reconstructing "what variance was shown on this date, from which receipts and allocations" becomes a search through unstructured log text - the outcome this finding was raised to prevent.</li>
+<li><span class="tag">The inputs are not snapshotted anywhere.</span> A variance is a function of three things that can all change afterwards: the expected batch payout, the set of receipts and their completeness, and the net allocation total (which reversals change, by design). Even if each successive variance value were kept, a value without its inputs cannot be verified, and an unverifiable historical financial figure is little better than none.</li>
+</ul>
+<p>The task for this amendment permitted a new table only if the existing schema cannot safely support the requirement. That test is met, and section 2 says why in one sentence: the only existing stores are a single mutable column, which cannot hold a sequence, and an unstructured audit payload, which cannot hold a verifiable calculation. Two tables are therefore added - one for the calculation, one for its typed input references - and no third: amounts, inputs and supersession can all be expressed with exactly those two.</p>
+</div>
+<div class="footer"><span>CL-16 - Immutable bank variance history</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change - <em>settlement_variance_calculations</em></h3>
+<p>Supersedes the bank variance parts of v0.1 Section C (<em>settlement_batches</em>) and D.10, and the variance-history sentence of v0.2 CL-10. Bank variance is henceforth an append-only calculation record. <em>settlement_batches</em> keeps every other column and rule unchanged - expected payout, allocation status, bank status - but its stored <em>bank_variance_poisha</em> column is <span class="tag">removed from the design</span>; the name survives as a derived value with identical meaning, defined below.</p>
+<p><span class="tag">settlement_variance_calculations</span> - one row per computation of bank variance for one settlement batch. Tenant-owned. RLS enforced. Append-only. Principal columns:</p>
+<table>
+<tr><th style="width:31%">Column</th><th style="width:17%">Type / null</th><th>Constraints and meaning</th></tr>
+<tr><td><code>id</code></td><td>UUID, NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID, NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>settlement_batch_id</code></td><td>UUID, NOT NULL</td><td>Composite FK to settlement_batches</td></tr>
+<tr><td><code>calculation_seq</code></td><td>INTEGER, NOT NULL</td><td>CHECK &gt;= 1. Sequence within the batch, assigned in the computing transaction. UNIQUE (merchant_id, settlement_batch_id, calculation_seq)</td></tr>
+<tr><td><code>expected_batch_payout_poisha</code></td><td>BIGINT, NOT NULL</td><td>Snapshot of the batch's expected payout at computation time. NOT NULL by precondition: no calculation row exists while the expected payout cannot be calculated exactly</td></tr>
+<tr><td><code>allocated_bank_confirmed_total_poisha</code></td><td>BIGINT, NOT NULL</td><td>Snapshot of the net allocated bank-confirmed total at computation time - allocations minus their reversals, on the CL-10 net-total rule</td></tr>
+<tr><td><code>bank_variance_poisha</code></td><td>BIGINT, NOT NULL</td><td>The computed variance: allocated bank-confirmed total minus expected batch payout. Signed; a negative variance is a legitimate arithmetic result, is not the negative-payout question of OD-12, and is never labelled a confirmed loss</td></tr>
+<tr><td><code>computed_at</code></td><td>TIMESTAMPTZ, NOT NULL</td><td>DEFAULT now()</td></tr>
+<tr><td><code>computed_by_user_id</code> / <code>actor_type</code></td><td>UUID NULL / TEXT NOT NULL</td><td>CHECK in ('user','system'), following the audit_logs pattern: a computation triggered by a merchant completing a receipt records that user; a system-triggered recomputation records actor_type 'system' with a NULL user</td></tr>
+</table>
+</div>
+<div class="footer"><span>CL-16 - Immutable bank variance history</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change (continued) - inputs, current value, supersession</h3>
+<p><span class="tag">settlement_variance_calculation_inputs</span> - the typed reference set for one calculation. Tenant-owned, RLS enforced, append-only:</p>
+<table>
+<tr><th style="width:31%">Column</th><th style="width:17%">Type / null</th><th>Constraints and meaning</th></tr>
+<tr><td><code>id</code></td><td>UUID, NOT NULL</td><td>PK</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID, NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>calculation_id</code></td><td>UUID, NOT NULL</td><td>Composite FK to settlement_variance_calculations</td></tr>
+<tr><td><code>input_kind</code></td><td>TEXT, NOT NULL</td><td>CHECK in ('receipt','allocation')</td></tr>
+<tr><td><code>bank_receipt_id</code></td><td>UUID, NULL</td><td>Composite FK to bank_receipts. NOT NULL exactly when input_kind = 'receipt'</td></tr>
+<tr><td><code>settlement_allocation_id</code></td><td>UUID, NULL</td><td>Composite FK to settlement_allocations. NOT NULL exactly when input_kind = 'allocation'. Reversal rows are allocations under CL-10 and are listed as inputs in their own right</td></tr>
+</table>
+<p>The exactly-one-reference rule is a row-local CHECK - the same XOR pattern CL-04 established for typed idempotency references - so every input is a real, tenant-checked foreign key, never a bare identifier in a text or JSON field. The receipt set listed is <em>every</em> receipt linked to the batch at computation time, because the completeness precondition is a statement about all of them. The calculation and its complete input set are inserted in the transaction that establishes its preconditions; a partial input set is not a state this design permits to commit (see section 4).</p>
+<p><span class="tag">Preconditions for a calculation row to exist at all</span> - restated from v0.1 D.10 and v0.2 CL-10 as insert conditions: the expected payout is NOT NULL; every linked receipt is explicitly marked complete; and the batch is fully allocated on net totals. Until all three hold, there is no calculation row and the current variance is NULL.</p>
+<p><span class="tag">Current variance is derived, never stored.</span> The value presented for a batch - still named <em>bank_variance_poisha</em> at the read surface - is: the <em>bank_variance_poisha</em> of the batch's highest-<em>calculation_seq</em> calculation, <em>if and only if</em> that calculation's preconditions still hold against current data: the batch's expected payout and current net allocated total still equal its snapshots, and every currently linked receipt is complete. In every other case the current variance is NULL. This is CL-10's rule, now resting on a structured comparison instead of a presentation convention.</p>
+<p><span class="tag">Supersession after reversal.</span> A reversal changes no calculation row: it makes the latest calculation fail the still-holds comparison, so current variance becomes NULL, while the history remains queryable in sequence. Re-allocation to full allocation triggers a <em>new</em> calculation row with the next <em>calculation_seq</em>, snapshotting the new net total and the then-current allocation set, including the reversal row. Supersession is derived from sequence order: there is deliberately no <em>is_current</em> flag, because a flag on an earlier row would have to be updated when a later calculation is inserted, and these rows are never updated The CL-10 audit row is still written for each computation and reversal, as a mirror: where CL-10 said history "remains in the audit record", this amendment corrects the emphasis - history is in the calculation table, and the audit record mirrors it, as CL-07 established for match decisions.</p>
+<h3>3. Affected section and table</h3>
+<p>Section C (two new tables - 31 in total, up from 29 under v0.2; <em>settlement_batches</em> loses its stored <em>bank_variance_poisha</em> column); Section B ERD settlement sub-diagram; Section D.10 (variance definition restated); Appendix 1 bank-variance row (enforcement reference updated); v0.2 CL-10 (variance-history sentence superseded); Section I test T-28 (new) and T-17 (strengthened, section 5).</p>
+</div>
+<div class="footer"><span>CL-16 - Immutable bank variance history</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>4. Constraint or transaction-level enforcement</h3>
+<ul>
+<li><span class="tag">Append-only, like every other financial history table.</span> Both new tables join the Section E append-only class: RLS ENABLE + FORCE, SELECT and INSERT policies and grants only for the runtime role, no UPDATE or DELETE policy or grant. A variance, once computed and shown, cannot be edited into a different number; it can only be succeeded.</li>
+<li><span class="tag">Row-local CHECKs.</span> The variance arithmetic is same-row and is therefore a legitimate CHECK: <em>bank_variance_poisha</em> = <em>allocated_bank_confirmed_total_poisha</em> - <em>expected_batch_payout_poisha</em>. The inputs table carries the XOR CHECK on its two reference columns and the <em>input_kind</em> list. <em>calculation_seq</em> is positive and unique per batch by its unique constraint.</li>
+<li><span class="tag">Tenant integrity of inputs.</span> Every reference is a composite (merchant_id, id) foreign key, so a calculation in one workspace cannot list a receipt or allocation from another, and a calculation cannot be attached to another workspace's batch - the same guarantee CL-04's typed references provide for idempotency.</li>
+<li><span class="tag">Preconditions and input completeness are transaction-level.</span> Whether all linked receipts are complete and the batch is fully allocated is a statement about other tables and about sets of rows; it cannot be a CHECK (see CL-17). The computing transaction therefore runs under the same row lock on the settlement batch that CL-10's allocation protocol already takes - which serialises calculation against concurrent allocation and reversal for that batch - verifies the three preconditions, derives the input set, and inserts the calculation and its inputs atomically. A deferred constraint trigger (ADAPT) is the commit-time backstop: it rejects a committed calculation whose snapshots do not equal the precondition values derivable from its listed input set, so an insert path that skipped the verification cannot leave a false calculation standing.</li>
+<li><span class="tag">Sequence integrity.</span> <em>calculation_seq</em> is assigned as one more than the batch's current maximum, inside the batch-locked transaction, so concurrent computations for one batch cannot interleave or reuse a sequence value; the unique constraint is the backstop, as with CL-13's successor index.</li>
+<li><span class="tag">Tombstone compatibility.</span> Both tables are financial history under CL-15: anonymisation never updates or deletes them, their <em>merchant_id</em> continues to scope them under the tombstoned workspace, and an anonymised export draws variance history from these tables rather than from audit payloads.</li>
+</ul>
+<h3>5. Updated test scenario</h3>
+<p><span class="tag">T-28 (new) - Bank variance history.</span> Build a batch with two partial receipts (T-17's fixture): at every intermediate step, expected - no calculation row exists and current variance is NULL. Complete both receipts and fully allocate: exactly one calculation row exists, seq 1, its input set lists both receipts and every allocation row, its variance equals the snapshotted totals' difference, and current variance equals it. Reverse one allocation (CL-10): the seq-1 row is byte-identical, no new calculation exists, and current variance is NULL. Re-allocate to full allocation with a different net total: a seq-2 calculation exists with the new total and an input set that includes the reversal row; current variance equals seq 2; seq 1 remains queryable. Then: an UPDATE or DELETE on either new table as the runtime role affects zero rows or is denied; a calculation insert attempted while a receipt is incomplete is rejected; an input row referencing another workspace's receipt is rejected by the composite foreign key; and a hand-inserted calculation whose snapshotted total disagrees with its listed inputs is rejected at commit by the deferred trigger. <span class="tag">T-17 is strengthened</span> accordingly: its phrase "the historical computation remains auditable" now asserts the seq-1 calculation row and its inputs, not an audit payload.</p>
+<h3>6. Status</h3>
+<div class="verdict">
+<p><span class="tag">Resolved.</span> Historical bank variance now has a structured, immutable, verifiable home: value, inputs, actor and time are relational records with foreign keys and constraints, supersession after reversal is a derivation rather than an edit, and the current-variance rule of v0.1 D.10 and CL-10 is preserved exactly. The new-table condition in the commissioning brief is addressed head-on in section 1: the existing schema offered a single mutable column and an unstructured log, and neither can safely hold this history.</p>
+</div>
+</div>
+<div class="footer"><span>CL-16 - Immutable bank variance history</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>CL-17 - Clarification: cross-table consistency is not a CHECK constraint</h2>
+<h3>1. Original problem</h3>
+<p>v0.2 CL-01, item 4, specified the enforcement of the corrected status rule in these words: "A consistency CHECK (or deferred constraint trigger, ADAPT at implementation) rejects the impossible combination overall_status = 'matched' together with any stored finding on the same result whose amount is non-zero outside the run tolerance." The parenthetical treats two different mechanisms as interchangeable options for one rule. They are not interchangeable, and for this rule only one of them exists.</p>
+<p>The rule inspects three tables: the result's <em>overall_status</em> sits on <em>reconciliation_results</em>; the findings and their amounts sit on <em>reconciliation_findings</em>; the tolerance they are compared against sits on <em>reconciliation_runs</em>. A PostgreSQL CHECK constraint is evaluated against the single row being inserted or updated in its own table. It cannot contain a subquery, cannot reference another table, and cannot reference another row - PostgreSQL rejects such definitions at creation time. There is therefore no CHECK, on any of the three tables, that can express "matched while a live finding exists". An implementer who took the CL-01 wording at face value would either discover this at migration time and improvise, or - worse - implement the row-local half (the closed status list) and believe the cross-table half was also covered. This clarification removes the ambiguity at the source, and then applies the same discipline retroactively to every invariant in v0.1 and v0.2 whose enforcement was described loosely.</p>
+<h3>2. Exact proposed change - three mechanisms, three distinct scopes</h3>
+<p>The following definitions govern how enforcement language is to be read in v0.1, v0.2 and this amendment. Where any earlier text says "CHECK (or deferred trigger)", "write-path enforcement" or "consistency check" for a rule that spans rows or tables, it is to be read as the mechanism this section assigns - this is a clarification of enforcement, not a change to any rule itself.</p>
+<table>
+<tr><th style="width:24%">Mechanism</th><th style="width:33%">What it can inspect</th><th>Correct use in this design</th></tr>
+<tr><td><strong>CHECK constraint</strong></td><td>Values within the one row being written, and nothing else. Evaluated immediately, row by row, as the statement executes.</td><td>Closed value lists (<em>overall_status</em>, states, kinds); state-to-value rules pairing a column with its state column in the same row; same-row sign rules and arithmetic such as CL-16's variance identity; XOR rules over a row's own reference columns (CL-04, CL-16). If a proposed CHECK mentions another table, another row or a total, it is not a CHECK.</td></tr>
+<tr><td><strong>Deferred constraint trigger</strong></td><td>Arbitrary queries over any tables, evaluated at COMMIT when declared DEFERRABLE INITIALLY DEFERRED - by which time every row of the transaction exists, in whatever order the transaction wrote them.</td><td>The enforcement mechanism for every cross-row and cross-table invariant in this design, including CL-01's matched-over-live-finding rule. Fires on each table whose writes can break the invariant, so the order of inserts inside the transaction does not matter.</td></tr>
+<tr><td><strong>Transaction-level assertion</strong></td><td>Not a PostgreSQL feature. PostgreSQL does not implement the SQL-standard CREATE ASSERTION, and no syntax in this specification may imply that it does.</td><td>In this specification the phrase means exactly one of two real things, and documents must say which: a deferred constraint trigger as above, or a mandatory validation step inside the writing transaction, backstopped by such a trigger. It never means a CHECK, and it never means an application convention with no database backstop for a financial invariant.</td></tr>
+</table>
+</div>
+<div class="footer"><span>CL-17 - PostgreSQL cross-table constraint clarification</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<p><span class="tag">CL-01 enforcement, restated correctly.</span> The closed five-value list on <em>overall_status</em> remains a CHECK - it is row-local. The consistency rule is enforced by a deferred constraint trigger (ADAPT), defined on both <em>reconciliation_results</em> and <em>reconciliation_findings</em>, so that it fires whether a transaction writes the result first and its findings second, or the reverse. At commit, the trigger re-derives the expected overall status for each affected result using the CL-01 five-step precedence, reading the run's tolerance through the result's <em>run_id</em>, and rejects the transaction if the stored <em>overall_status</em> differs from the derived one. Verifying the whole derivation, rather than only the single "matched over a live finding" combination named in v0.2, costs nothing extra at commit time and closes the entire class of status errors, not one instance of it. Because results and findings are append-only, the trigger constrains creation only; there is no update path to police.</p>
+<p><span class="tag">A note on trigger functions and RLS.</span> Constraint-trigger functions execute with the privileges of the function owner, which in this design is the migrator role, not the runtime role - and under FORCE RLS the owner is itself subject to policies on row operations. Two design rules follow, stated so the implementation does not rediscover them: a trigger function used for cross-table verification must scope every query it makes by the <em>merchant_id</em> of the rows that fired it, explicitly, rather than relying on the caller's tenant context, which is a property of the application transaction and not of the verification being performed; and the existence of an owner-privileged trigger function is never a reason to grant the runtime role anything - triggers fire on writes the role is already permitted to make, and confer no callable surface of their own.</p>
+</div>
+<div class="footer"><span>CL-17 - PostgreSQL cross-table constraint clarification</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change (continued) - the mechanism map</h3>
+<p>Every cross-row or cross-table invariant named in v0.1, v0.2 or this amendment is assigned its mechanism here. This table is the complete list known to this review; a future invariant that cannot be placed in it is not yet fully specified.</p>
+<table>
+<tr><th style="width:44%">Invariant</th><th style="width:24%">Mechanism</th><th>Source</th></tr>
+<tr><td>Overall status equals the CL-01 derivation from findings and tolerance</td><td>Deferred constraint trigger (results + findings)</td><td>CL-01, as corrected here</td></tr>
+<tr><td>Result totals equal the sum of their fee lines per basis, or are NULL</td><td>Deferred constraint trigger</td><td>v0.1 Section C; CL-08</td></tr>
+<tr><td>A reversal's amount equals its target allocation's amount</td><td>Deferred constraint trigger</td><td>CL-10</td></tr>
+<tr><td>Net allocations from one receipt never exceed the receipt amount</td><td>Row lock in the allocation transaction + deferred constraint trigger (mandatory)</td><td>v0.1 D.10 / OD-14; CL-10</td></tr>
+<tr><td>At most one currently confirmed candidate per statement line</td><td>Deferred constraint trigger</td><td>CL-03; CL-13 item (f)</td></tr>
+<tr><td>Match decision chain well-formedness for histories written through the application path</td><td>Advisory lock + partial unique index; deferred constraint trigger verification</td><td>CL-13</td></tr>
+<tr><td>Variance calculation snapshots agree with their listed input set, under complete preconditions</td><td>Batch row lock in the computing transaction + deferred constraint trigger</td><td>CL-16</td></tr>
+<tr><td>At least one active owner per workspace</td><td>Mandatory validation in the membership transaction, under lock</td><td>v0.1 OD-11 - no trigger backstop is specified there; flagged below</td></tr>
+<tr><td>Closed value lists, state-to-value pairs, sign rules, same-row arithmetic, XOR reference rules</td><td>CHECK</td><td>Throughout Sections C and D</td></tr>
+<tr><td>Tenant consistency of relationships</td><td>Composite foreign keys - not triggers and not CHECKs</td><td>v0.1 Sections C and E</td></tr>
+</table>
+<p><span class="tag">One honest flag from the map.</span> OD-11 (at least one active owner) is the only financial-adjacent invariant in the map whose enforcement rests on application transaction discipline alone, because v0.1 deliberately left the choice between a locking transaction and a deferred trigger open. This clarification does not close OD-11 - it is an open decision, and choosing its mechanism is part of it - but it narrows the choice honestly: if the decision lands on the trigger, the mechanism is a deferred constraint trigger as defined here; no third option exists.</p>
+</div>
+<div class="footer"><span>CL-17 - PostgreSQL cross-table constraint clarification</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>3. Affected section and table</h3>
+<p>v0.2 CL-01 item 4 (the phrase "consistency CHECK (or deferred constraint trigger, ADAPT)" is superseded by section 2 above; the CL-01 <em>rule</em> - scenario-only V<sub>total</sub> yields <em>open</em>, never <em>matched</em> and never a contractual <em>mismatch</em> - is untouched); v0.1 Section H.5 (the sentence assigning "the identities between a result's stored variances" to the database is to be read through the mechanism map); Section I test T-29 (new). No table, column or constraint list changes anywhere: this item changes what the specification <em>claims about</em> enforcement, not what is enforced.</p>
+<h3>4. Constraint or transaction-level enforcement</h3>
+<p>The enforcement is this clarification itself, plus one standing drafting rule for all future amendments and for the implementation review: <span class="tag">any sentence that assigns an invariant to "a CHECK" must be able to name the single table and the single row the check inspects.</span> If it cannot, the sentence is wrong and must name a deferred constraint trigger, a foreign key, a unique index, or a locked transaction protocol instead. Reviewers are asked to apply that test to this amendment as well: the CHECKs claimed in CL-14 (key state-to-column consistency), CL-15 (none claimed across tables - eligibility is a locked transaction rule, and section 4 of CL-15 says so) and CL-16 (same-row variance arithmetic; XOR reference rule) each pass it, and each of those findings assigns its cross-table parts to triggers or locks explicitly.</p>
+<p>A performance note, so the trigger-based design is chosen with open eyes: deferred constraint triggers fire per affected row at commit, and the status trigger re-derives a result from its findings - work proportional to findings per result, at SME statement volumes that v0.1 Section F already takes as the design scale. This is not premature optimisation territory, and no caching or denormalisation is introduced to avoid it.</p>
+<h3>5. Updated test scenario</h3>
+<p><span class="tag">T-29 (new) - Cross-table enforcement mechanism.</span> (a) Attempt, as a design-review assertion recorded with the test suite, to define the matched-over-live-finding rule as a CHECK referencing <em>reconciliation_findings</em>: the migration defining it is expected to be rejected by PostgreSQL, and the review records that rejection as the demonstration that CL-17's premise is correct. (b) In one transaction, insert a result with <em>overall_status</em> = matched and then a finding on it outside tolerance: the transaction fails at commit, not at either insert. (c) Reverse the write order - findings first, result second - with the same inconsistency: the transaction likewise fails at commit. (d) A result whose findings are all within tolerance, stored as <em>matched_with_tolerance</em>: commits. (e) A scenario-only V<sub>total</sub> finding outside tolerance stored with overall <em>open</em>: commits; the same rows stored with overall <em>matched</em> or <em>mismatch</em>: rejected at commit - CL-01 and CL-17 verified together. (f) A row violating the closed status list (a sixth value): rejected immediately at insert by the CHECK, demonstrating the division of labour in a single scenario.</p>
+<h3>6. Status</h3>
+<div class="verdict">
+<p><span class="tag">Resolved as a clarification.</span> No rule changes: CL-01 stands exactly as v0.2 decided it. What changes is that the specification no longer claims an enforcement mechanism PostgreSQL does not have, every previously loose enforcement phrase has an assigned real mechanism, and a drafting test exists to keep the error from returning. This is the only item in the amendment that corrects v0.2's own wording, and it is recorded in the change log as such.</p>
+</div>
+</div>
+<div class="footer"><span>CL-17 - PostgreSQL cross-table constraint clarification</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>Consolidated test changes</h2>
+<p>Section I of v0.1, as amended by v0.2, stands except as listed here. This table is the complete delta from this amendment.</p>
+<table>
+<tr><th style="width:13%">Test</th><th style="width:62%">Change</th><th>Source</th></tr>
+<tr><td class="c">T-17</td><td>Strengthened: the phrase "the historical computation remains auditable" now asserts the immutable calculation row (seq 1) and its typed input references, not an audit payload</td><td>CL-16</td></tr>
+<tr><td class="c">T-25</td><td>Revised: Stage 2 tombstoning assertions - identity fields scrubbed in place, financial rows byte-identical including merchant_id, runtime role reads nothing, re-open rejected after anonymisation</td><td>CL-15</td></tr>
+<tr><td class="c">T-26</td><td>New: match decision chain integrity - serialised concurrency, single-successor index, same-candidate composite FK, conflicted derivation, unanimous-rejection closure, successor candidate</td><td>CL-13</td></tr>
+<tr><td class="c">T-27</td><td>New: idempotency recovery - crash windows W1 to W4, lease reclaim, zombie fencing, reclaim race, hash conflict in every state, attempt cap, post-expiry run deduplication</td><td>CL-14</td></tr>
+<tr><td class="c">T-28</td><td>New: bank variance history - calculation sequence, input sets, current-variance derivation, supersession after reversal, append-only enforcement</td><td>CL-16</td></tr>
+<tr><td class="c">T-29</td><td>New: cross-table enforcement - CHECK incapacity demonstrated, commit-time rejection, CL-01 derivation enforced by the deferred trigger</td><td>CL-17</td></tr>
+<tr><td class="c">T-30</td><td>New: shared user across workspaces - one workspace's anonymisation never touches a user with an active membership elsewhere; global anonymisation only when no active membership remains</td><td>CL-15</td></tr>
+</table>
+<h3>Appendix 1 delta - invariant traceability</h3>
+<ul>
+<li><span class="tag">Row "Corrections create new records or runs"</span> now also covers match decision chains (CL-13), idempotency claims (CL-14) and bank variance calculations (CL-16). Tests T-21, T-26, T-28.</li>
+<li><span class="tag">Row "Bank variance NULL until receipt complete and batch fully allocated"</span> - enforcement now reads: calculation insert preconditions and derived current value over <em>settlement_variance_calculations</em> (CL-16); tests T-17, T-28. The invariant itself is unchanged.</li>
+<li><span class="tag">Row "Scenario V_total cannot trigger a contractual mismatch"</span> - enforcement now reads: D.6 derivation as corrected by CL-01, verified at commit by the deferred trigger assigned in CL-17; tests T-16, T-29.</li>
+<li><span class="tag">New row: match decisions form one linear chain per candidate</span> - advisory-lock serialisation, partial unique successor index, same-candidate composite self-FK (CL-13); test T-26.</li>
+<li><span class="tag">New row: a claimed idempotency key always reaches a defined end state</span> - lease expiry, fenced reclaim, same-transaction completion (CL-14); tests T-10, T-27.</li>
+<li><span class="tag">New row: anonymisation changes identity, never keys</span> - in-place tombstoning under ON DELETE RESTRICT, with no financial-row writes (CL-15); tests T-25, T-30.</li>
+</ul>
+<div class="callout blue">
+<p>No test is claimed to have passed. These are design-stage scenarios for the future M1 test suite, as in v0.1 Section I and v0.2. Nothing in this amendment was executed against a database, because no M1 implementation exists and none is authorised.</p>
+</div>
+</div>
+<div class="footer"><span>Consolidated test changes and Appendix 1 delta</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>Change log - v0.2 to v0.3 (this amendment)</h2>
+<table>
+<tr><th style="width:12%">Item</th><th style="width:16%">Type</th><th>Change</th></tr>
+<tr><td class="c">CL-13</td><td>Supersedes + Adds</td><td>Decision history defined as one linear chain per candidate: advisory-lock serialisation of decision inserts; partial unique index for at most one successor per decision; composite self-FK confining supersession to the same candidate and tenant; deterministic derivation for well-formed, unanimously rejected and conflicted histories; conflict resolution by closure or by a successor candidate (new <em>prior_candidate_id</em> column on <em>shipment_match_candidates</em>); cycle impossibility shown from immutability; T-26 added.</td></tr>
+<tr><td class="c">CL-14</td><td>Clarifies + Adds</td><td>Idempotency recovery specified on the CL-04 architecture: lease expiry separated from key expiry; fencing <em>claim_token</em>, <em>attempt_count</em> and <em>claimed_by_instance</em> columns added; atomic conditional reclaim; completion made explicitly the last write of the work transaction, closing crash window W3; four crash windows stated; attempt cap defined; T-27 added, T-10 extended.</td></tr>
+<tr><td class="c">CL-15</td><td>Clarifies + Adds</td><td>CL-12 Stage 2 given mechanics: tombstone merchant anonymised in place (<em>anonymised_at</em> added), financial rows untouched, shared retention tenant and merchant_id rewriting considered and rejected; global-eligibility rule for user anonymisation protecting shared accounts; post-anonymisation RLS and export behaviour defined; T-25 revised, T-30 added; OD-17 opened for personal data inside append-only raw records.</td></tr>
+<tr><td class="c">CL-16</td><td>Supersedes + Adds</td><td>Bank variance history moved from the single stored column on <em>settlement_batches</em> (removed) to two new append-only tables, <em>settlement_variance_calculations</em> and <em>settlement_variance_calculation_inputs</em> (31 tables in total); current variance defined as a derivation over the latest calculation and its still-holding preconditions; CL-10's audit-record wording corrected to a mirror relationship; T-28 added, T-17 strengthened.</td></tr>
+<tr><td class="c">CL-17</td><td>Clarifies (corrects v0.2 wording)</td><td>CL-01 item 4's "consistency CHECK (or deferred constraint trigger)" superseded: the cross-table rule is a deferred constraint trigger, full stop; CHECK, deferred constraint trigger and "transaction-level assertion" defined with their real scopes; a mechanism map assigns every cross-row invariant in v0.1 and v0.2; a standing drafting rule for future enforcement claims; OD-11 narrowed but not closed; T-29 added. No rule in CL-01 to CL-12 is changed by this item.</td></tr>
+</table>
+<p class="small">Types follow v0.2 usage: <em>Supersedes</em> - the earlier text named is replaced for that item only. <em>Clarifies</em> - the earlier text was ambiguous or incomplete; one reading is fixed and the other rejected explicitly. <em>Adds</em> - new material with no direct counterpart.</p>
+</div>
+<div class="footer"><span>Change log - v0.2 to v0.3</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>Remaining blockers</h2>
+<h3>Blocking any M1 implementation (unchanged from v0.1 and v0.2)</h3>
+<ul>
+<li><span class="tag">B-1.</span> Market validation: Day 7 and Day 14 gates not yet run; no interview evidence exists.</li>
+<li><span class="tag">B-2.</span> No merchant-confirmed courier evidence for any of Steadfast, Pathao, Paperfly, RedX or eCourier - no rule version can yet be populated without inventing contract semantics, which is prohibited.</li>
+<li><span class="tag">B-3.</span> Docker + PostgreSQL verification environment not established; no design SQL in v0.1, v0.2 or this amendment has been executed - including the deferred triggers, advisory-lock protocol and conditional-update patterns specified here, which are design-reviewed but unproven against a running database.</li>
+<li><span class="tag">B-4.</span> Explicit production-readiness approval not given.</li>
+</ul>
+<h3>Open decisions carried forward</h3>
+<ul>
+<li><span class="tag">OD-12 (CL-02, v0.2)</span> - whether any real courier statement reports a negative net payout. Open until redacted merchant statements answer it. Unchanged by this amendment; CL-16's negative bank <em>variance</em> is a different, purely arithmetic quantity and is not evidence for OD-12 either way.</li>
+<li><span class="tag">OD-16 (CL-12, v0.2)</span> - workspace grace-window length, Bangladesh financial retention period, and the erasure-versus-retention conflict rule. Requires policy and legal review. CL-15 supplies the mechanics OD-16 was missing; the periods and the conflict rule remain undecided. Blocks production launch, not design review.</li>
+<li><span class="tag">OD-17 (new, CL-15)</span> - treatment of third-party personal data held inside append-only raw records (<em>import_rows.raw_values</em>, statement raw fields) when a workspace is anonymised, where erasure, raw-preservation immutability and financial retention conflict. Interim position: sealed retention, excluded from anonymised exports, no runtime-role access. Requires the same Bangladesh legal review as OD-16. Blocks production launch, not design review.</li>
+<li><span class="tag">OD-11 (v0.1, narrowed by CL-17)</span> - guaranteeing at least one active owner per workspace: mechanism choice is now between a locked membership transaction and a deferred constraint trigger, and the decision itself remains open.</li>
+<li><span class="tag">CL-11 deployment check (v0.2)</span> - the tenant-context trust boundary is specified; verifying a real deployment honours it remains a production-readiness task.</li>
+<li>All other v0.1 open decisions OD-01 to OD-15 stand as written, except OD-11 and OD-12 as noted above; OD-13's expiry window is to be read together with the 24-hour design default set by v0.2 CL-04.</li>
+</ul>
+<div class="callout blue">
+<p><span class="tag">Final statement.</span> With this amendment applied, the five audited items are settled at design level: decision histories cannot branch undetectably (CL-13), abandoned idempotency claims always recover without duplicating a financial operation (CL-14), anonymisation no longer threatens tenant integrity or shared accounts (CL-15), bank variance history is structured and immutable (CL-16), and no enforcement claim in the specification exceeds what PostgreSQL can actually do (CL-17). Three things remain open for named external reasons - evidence for OD-12, and Bangladesh legal and policy review for OD-16 and OD-17 - rather than design ambiguity. The specification, v0.1 as amended by v0.2 and v0.3, is a coherent, reviewable blueprint. It is not an authorisation to build: M1 production implementation remains gated behind market validation and explicit production-readiness approval.</p>
+</div>
+<p class="small">End of amendment v0.3. This amendment supersedes only the sections it explicitly names. All other content of the Database Design Specification v0.1 and of Technical Correction Amendment v0.2 remains unchanged.</p>
+</div>
+<div class="footer"><span>CourierLedger M1 Database Design - Amendment v0.3 | Baselines: v0.1 and v0.2</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+</body>
+</html>

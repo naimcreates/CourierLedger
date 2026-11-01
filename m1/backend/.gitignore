@@ -1,0 +1,12 @@
+# Local-dev artefacts (never committed).
+__pycache__/
+*.pyc
+.pytest_cache/
+.var/
+var/
+.venv/
+.env
+*.sqlite3
+.coverage
+htmlcov/
+*.log

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CourierLedger M1 Database Design Specification - Technical Correction Amendment v0.5</title>
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+body { margin: 0; font-family: 'Liberation Sans', 'Noto Sans', sans-serif; color: #1c2733; font-size: 10pt; line-height: 1.44; }
+.page { min-height: 297mm; padding: 17mm 18mm 15mm 18mm; display: flex; flex-direction: column; position: relative; }
+.page > .body { flex: 1 1 auto; }
+h1 { font-size: 25pt; line-height: 1.2; margin: 0 0 6mm 0; color: #12314e; }
+h2 { font-size: 15pt; line-height: 1.3; margin: 0 0 4mm 0; color: #12314e; }
+h3 { font-size: 11.5pt; margin: 4mm 0 1.6mm 0; color: #12314e; }
+h3:first-child { margin-top: 0; }
+p { margin: 0 0 2.5mm 0; }
+ul, ol { margin: 0 0 2.5mm 0; padding-left: 6mm; }
+li { margin-bottom: 0.9mm; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 3mm 0; font-size: 8.8pt; }
+th { background: #e9eff5; color: #12314e; text-align: left; padding: 1.6mm 2mm; border: 0.4pt solid #b9c7d4; font-size: 8.8pt; }
+td { padding: 1.6mm 2mm; border: 0.4pt solid #b9c7d4; vertical-align: top; }
+code, .mono { font-family: 'Liberation Mono', 'Noto Sans Mono', monospace; font-size: 8.8pt; }
+pre { font-family: 'Liberation Mono', 'Noto Sans Mono', monospace; font-size: 8.4pt; line-height: 1.45; background: #f2f5f8; border: 0.4pt solid #c8d3de; padding: 3mm; margin: 0 0 4mm 0; white-space: pre-wrap; }
+.kicker { font-size: 9pt; letter-spacing: 1.6pt; text-transform: uppercase; color: #5a7186; margin: 0 0 4mm 0; }
+.sub { font-size: 12pt; color: #3c556e; margin: 0 0 6mm 0; line-height: 1.45; }
+.callout { border-left: 2.2mm solid #b3541e; background: #fdf3ec; padding: 3mm 4mm; margin: 0 0 4mm 0; }
+.callout.blue { border-left-color: #24567f; background: #eef4fa; }
+.callout p:last-child { margin-bottom: 0; }
+.verdict { border: 0.6pt solid #24567f; background: #eef4fa; padding: 3mm 4mm; margin: 0 0 4mm 0; }
+.verdict p:last-child { margin-bottom: 0; }
+.small { font-size: 8.8pt; color: #42586c; }
+.footer { border-top: 0.4pt solid #c8d3de; padding-top: 2mm; font-size: 8pt; color: #5a7186; display: flex; justify-content: space-between; }
+.tag { font-weight: bold; color: #12314e; }
+.covermeta { margin-top: 6mm; font-size: 10pt; }
+.covermeta td { border: none; padding: 1.2mm 4mm 1.2mm 0; font-size: 10pt; }
+.coverrule { border-top: 1mm solid #24567f; margin: 8mm 0; width: 38mm; }
+section, table, .callout, .verdict, pre { break-inside: avoid; page-break-inside: avoid; }
+</style>
+</head>
+<body>
+<div class="page">
+<div class="body">
+<p class="kicker">Amendment v0.5 &nbsp;|&nbsp; Design only</p>
+<h1>CourierLedger M1 Database Design Specification</h1>
+<p class="sub">Technical Correction Amendment v0.5</p>
+<div class="coverrule" style="margin:4mm 0"></div>
+<p>A targeted correction amendment to the Database Design Specification v0.1 (36 pages), as amended by Technical Correction Amendment v0.2 (CL-01 to CL-12), v0.3 (CL-13 to CL-17) and v0.4 (CL-18 to CL-22). This amendment supersedes only what it explicitly names. Everything else in v0.1 to v0.4 stands unchanged.</p>
+<div class="callout">
+<p><span class="tag">Scope guard.</span> This document contains no application code and no executable migrations. SQL fragments, update predicates and configuration settings are illustrative design notation, marked ADAPT, exactly as in v0.1 Section E and v0.2 to v0.4. No courier rate, fee, statement format or contract semantic is invented. V2.2.1 formulas and identities, integer BIGINT poisha, per-component half-up rounding, NULL versus verified zero, and the explicit D<sub>c</sub> confirmation-plus-evidence rule are preserved without modification. CL-01 to CL-22 are preserved except where a finding below explicitly supersedes a named detail.</p>
+</div>
+<p><span class="tag">What this amendment does</span></p>
+<ul>
+<li>Corrects four specific technical gaps, CL-23 to CL-26, each in the established six-part form: original problem, exact change, affected sections and tables, constraint or transaction-level enforcement, updated test scenario, and a resolved / partially resolved / still-open verdict.</li>
+<li>Adds no table, no column and no status; the design total stays at 31 tables. The changes are a removed fixture route (CL-23), two corrected predicates (CL-24), an extended lock protocol (CL-25) and a seventh rule in an existing pattern (CL-26).</li>
+<li>Ends with a consolidated test-change table, an invariant traceability delta, a change log from v0.4 to v0.5, the remaining blockers, and a schema-freeze statement.</li>
+</ul>
+<p><span class="tag">Reading rule.</span> Where this amendment and v0.1, v0.2, v0.3 or v0.4 disagree, this amendment wins for the named item only. Where it is silent, v0.1 as amended by v0.2, v0.3 and v0.4 applies.</p>
+<div class="callout blue">
+<p><span class="tag">Gating - unchanged.</span> M1 production implementation remains gated behind the Day 7 and Day 14 market-validation gates, merchant-confirmed courier evidence, a Docker + PostgreSQL verification environment, and explicit production-readiness approval. This amendment authorises none of those steps, and no test in it is claimed passed.</p>
+</div>
+<table class="covermeta" style="margin-top:2mm">
+<tr><td class="tag">Baseline</td><td>Database Design Specification v0.1 (36 pages)</td></tr>
+<tr><td class="tag">Prior amendments</td><td>Technical Correction Amendment v0.2 (CL-01 to CL-12); v0.3 (CL-13 to CL-17); v0.4 (CL-18 to CL-22)</td></tr>
+<tr><td class="tag">This amendment</td><td>v0.5 - CL-23 to CL-26</td></tr>
+<tr><td class="tag">Financial authority</td><td>Specification V2.2.1 and the P0 final clarification, unchanged</td></tr>
+</table>
+</div>
+<div class="footer"><span>CourierLedger M1 Database Design Specification - Technical Correction Amendment v0.5</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>Amendment at a glance</h2>
+<p>Four findings. Each corrects a place where an earlier statement, read precisely, does not say what the design needs it to say: a fixture route whose privilege claim no PostgreSQL role actually satisfies (CL-23), two lifecycle predicates that omit the very condition the same section makes definitional for ownership (CL-24), a lock protocol that covers the creation of a live session but is silent about its renewal (CL-25), and a hardened execution pattern that never fixes the one setting - <code>search_path</code> - through which a caller can redirect what a SECURITY DEFINER function resolves (CL-26).</p>
+<table>
+<tr><th style="width:12%">ID</th><th style="width:44%">Subject</th><th style="width:24%">Affected locations</th><th style="width:20%">Verdict</th></tr>
+<tr><td>CL-23</td><td>CL-18 legacy fixture loading: load-before-trigger becomes the sole permitted route; the replica-mode route and its privilege statement are removed</td><td>v0.4 CL-18 sections 2, 4; test T-26(e)</td><td>Design-resolved; verification outstanding</td></tr>
+<tr><td>CL-24</td><td>CL-19 expired-worker fencing: completion and worker-reported failure gain the live-lease condition</td><td>v0.4 CL-19 section 2 predicate table; v0.3 CL-14; tests T-27(r), new T-27(u)-(z)</td><td>Design-resolved; verification outstanding</td></tr>
+<tr><td>CL-25</td><td>CL-20 lock protocol extended to session renewal, refresh, expiry extension and reactivation; revocation and deletion position stated</td><td>v0.4 CL-20 sections 2, 4; v0.1 Section C, Section G; tests T-30(m)-(p)</td><td>Partially resolved - mechanics design-resolved; OD-16, OD-17 still open</td></tr>
+<tr><td>CL-26</td><td>CL-22 pattern gains Rule 7: restricted <code>search_path</code>, trusted-schema discipline, full qualification, no dynamic SQL, explicit EXECUTE revocation</td><td>v0.4 CL-22 Rules 1-6; v0.1 Section E; tests T-32(g)-(h)</td><td>Design-resolved; verification outstanding</td></tr>
+</table>
+<h3>What changes structurally - and what does not</h3>
+<p><span class="tag">No new tables.</span> The total stays at 31. No finding in this amendment adds a table, a column, an index or a status. CL-23 removes an option rather than adding one. CL-24 changes two rows of an existing predicate table. CL-25 extends an existing protocol's operation list. CL-26 adds one rule to an existing six-rule pattern.</p>
+<p><span class="tag">No formula changes.</span> Nothing here touches C, &#916;, V<sub>R</sub>, S, V<sub>cond</sub>, V<sub>total</sub>, the identities V<sub>total</sub> = C &#8722; &#916; &#8722; V<sub>R</sub> + S and V<sub>cond</sub> = S &#8722; V<sub>R</sub>, the CL-01 five-step status derivation, the fee-base rules, or the D<sub>c</sub> confirmation-plus-evidence requirement.</p>
+<p><span class="tag">No decision is silently closed.</span> OD-12, OD-16 and OD-17 stay open, exactly as v0.4 left them. CL-25 touches the mechanics around OD-16 and OD-17 and decides neither.</p>
+<div class="callout blue">
+<p><span class="tag">Design resolution is not verification.</span> A verdict of design-resolved in this amendment means the contradiction or gap is removed and a concrete, PostgreSQL-accurate mechanism is specified. It does not mean the mechanism has been run. No M1 implementation exists, the Docker + PostgreSQL verification environment (blocker B-3) is not established, and every mechanism named here remains unproven against a running database until that environment exists. The final section returns to what this means for schema freeze.</p>
+</div>
+</div>
+<div class="footer"><span>Amendment at a glance</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>CL-23 - Correct the CL-18 legacy fixture loading mechanism</h2>
+<h3>1. Original problem</h3>
+<p>v0.4 CL-18 resolved the contradiction between the CL-13 deferred constraint trigger and test T-26(e) by scoping the trigger to the malformation a transaction introduces, and by moving T-26(e)'s two-root history into an explicitly controlled legacy fixture. For loading that fixture, CL-18 section 2 permitted two routes: load-before-trigger (preferred), and a replica-mode load in which the fixture loader, running as the migrator role in a disposable test database, loads the malformed rows with trigger firing suppressed for that loader session - described, in design notation, as "a session-level trigger-suppression setting available only to the table owner".</p>
+<p>That privilege statement is not accurate for any PostgreSQL mechanism it could refer to, and the inaccuracy is not cosmetic:</p>
+<ul>
+<li><span class="tag">The session-level setting is superuser-only.</span> The setting that suppresses trigger firing for a session (<code>session_replication_role</code>) can be set only by a superuser. Table ownership confers no right to set it. A reader implementing CL-18 as written would either fail to run the fixture, or - worse - run the fixture loader as a superuser to make it work, normalising superuser use in the test harness that is supposed to model production discipline.</li>
+<li><span class="tag">The owner-level mechanism is not a session setting.</span> What a table owner can do is disable a trigger by DDL on the table. That is not session-scoped: it changes firing for every session, persists until explicitly reversed, and opens a window in which any concurrent writer - not just the loader - commits without the trigger. Describing an owner capability and a session capability as one mechanism merges two different risk profiles.</li>
+<li><span class="tag">The route is unnecessary.</span> The load-before-trigger route already achieves everything the fixture needs, with no suppression of any kind: the malformed rows are loaded before the trigger exists, which is also the honest model of how real legacy data comes to exist. The second route adds privilege ambiguity and a restoration step ("restore normal firing before any assertion runs") whose omission would silently invalidate the test, in exchange for nothing.</li>
+</ul>
+<p>The production trigger itself is not in question. CL-18's delta scoping, the linear-chain invariant, the partial unique successor index, the composite self-FK and the append-only model all stand. Only the fixture's second loading route, and the privilege claim attached to it, are corrected here.</p>
+</div>
+<div class="footer"><span>CL-23 - Legacy fixture loading mechanism</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change - one route, stated completely</h3>
+<p>Supersedes the two-route fixture paragraph in v0.4 CL-18 section 2. The replica-mode route is <span class="tag">removed</span>, not retained with qualifications. The load-before-trigger route is the sole permitted method for creating a malformed legacy history in a test database, and it is specified as an ordered procedure (design notation, ADAPT):</p>
+<ol>
+<li><span class="tag">Disposable database only.</span> The fixture exists only in a test database built by the test harness and destroyed after the run. It is never loaded into any database that also serves as a development, staging or production environment.</li>
+<li><span class="tag">Load before the trigger exists.</span> The malformed rows - in T-26(e), two roots for one candidate, one chain ending confirmed and one ending rejected - are inserted at the point in the test database's build where the tables and their statement-time constraints exist but the CL-13 deferred constraint trigger has <span class="tag">not yet been created</span>. No trigger is disabled, dropped or suppressed at any point; there is nothing to restore, because nothing was switched off.</li>
+<li><span class="tag">Create the trigger with the production definition.</span> The CL-13 deferred constraint trigger is then created using exactly the definition the production migration will use - same timing, same delta scoping per CL-18, same execution context per CL-22 as extended by CL-26 of this amendment. A test-only variant of the trigger invalidates the fixture's purpose and is not permitted.</li>
+<li><span class="tag">Assert with the trigger fully active.</span> Every detection assertion - the derivation reporting the candidate as conflicted, the dependent run classifying the shipment <code>needs_review</code>, the fixture rows remaining byte-identical - executes after step 3, with the trigger in force.</li>
+<li><span class="tag">Prove the boundary in the same run.</span> The same test database, with the trigger active, must also demonstrate T-26(h): ordinary inserts by the runtime role, and separately by the migrator role in an ordinary session, cannot commit a newly introduced malformation. The fixture is evidence about pre-existing data only if the same database proves new malformation is still rejected.</li>
+<li><span class="tag">Label the data.</span> The fixture rows are identified in the test itself as legacy data loaded by this route. No test output may present them as the product of an application-path insert.</li>
+</ol>
+<div class="callout">
+<p><span class="tag">What this amendment does not permit.</span> No role created by this design - runtime, migrator, maintenance or test loader - is granted superuser, and no procedure in this design sets a session-level trigger-suppression setting or disables a constraint trigger, in any database. If a future test requirement genuinely cannot be met by the load-before-trigger route, it returns as a new amendment that names the exact PostgreSQL mechanism, the exact privilege it requires, who holds that privilege, its execution boundary and its restoration procedure. Until such an amendment exists, the route does not exist.</p>
+</div>
+</div>
+<div class="footer"><span>CL-23 - Legacy fixture loading mechanism</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>3. Affected sections and tables</h3>
+<p>v0.4 CL-18 section 2 (the fixture paragraph: the replica-mode route and the sentence describing a session-level suppression setting as available to the table owner are deleted; the six-step procedure above replaces the route description); v0.4 CL-18 section 4 (the fixture-discipline paragraph is narrowed accordingly - see section 4 below); Section I test T-26(e) (revised, section 5 below). Table <code>shipment_match_decisions</code>: no column, index or constraint changes. The CL-13 trigger definition, the partial unique successor index, the composite self-FK, the same-row self-reference CHECK and the append-only grant model are unchanged.</p>
+<h3>4. Constraint or transaction-level enforcement</h3>
+<p><span class="tag">Production trigger untouched.</span> The deferred constraint trigger keeps the CL-18 delta scope: it rejects malformation the committing transaction introduces, for every role including the migrator, and is neither repaired nor blocked by pre-existing malformation. This finding changes how test data is staged, never what the trigger enforces.</p>
+<p><span class="tag">Fixture discipline, narrowed.</span> v0.4 CL-18 section 4 stated that trigger suppression for fixture loading exists only in the test harness, only in the loader session, and only in a disposable database. That sentence is superseded: there is no sanctioned suppression to confine. The enforcement boundary is now the build order of the test database (fixture first, trigger second) plus the CL-11 deployment check, which gains one verification item: the deployed trigger set must match the design, and no production or maintenance procedure may contain a trigger-suppression or trigger-disable step for fixture purposes. Because the permitted route uses an ordinary build sequence, conformance is checkable by inspecting the test harness's build order - a stronger position than auditing that a suppression was switched back on.</p>
+<p><span class="tag">Detection remains read-only.</span> As in CL-18, the derivation pronounces on the fixture without modifying it; the malformed rows remain byte-identical throughout, as the append-only model already required.</p>
+<h3>5. Updated test scenario</h3>
+<p><span class="tag">T-26(e) (revised again).</span> Pre-existing malformed history, detected read-only. Build the two-root history strictly by the load-before-trigger procedure of section 2: rows inserted before the CL-13 trigger is created, trigger then created from the production definition, all assertions executed with the trigger fully active. Expected: the derivation reports the candidate conflicted with no current decision; a run that would rely on it classifies the shipment <code>needs_review</code> with a data-quality finding; neither fixture row has been altered; and the test records the load route used. Any version of this test that suppresses, disables or drops the trigger at any point is non-conforming.</p>
+<p><span class="tag">T-26(h) (reaffirmed, unchanged).</span> With the trigger enabled in the same test database, attempts by the runtime role and separately by the migrator role in an ordinary session to commit a second root for a candidate that already has one both fail at commit; the same holds for a further root added to the fixture candidate, whose legacy rows remain as loaded.</p>
+<h3>6. Status</h3>
+<div class="verdict">
+<p><span class="tag">Design-resolved; implementation verification outstanding.</span> The fixture now has exactly one loading route, that route requires no privilege beyond ordinary test-database construction, and no sentence in the design attributes a session-level suppression capability to table ownership. The deleted route cannot be revived by an implementer without a new amendment. Whether the harness build order is honoured in practice is a B-3 verification item, not a design question.</p>
+</div>
+</div>
+<div class="footer"><span>CL-23 - Legacy fixture loading mechanism</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>CL-24 - Expired-worker completion and failure fencing</h2>
+<h3>1. Original problem</h3>
+<p>v0.3 CL-14 separated the two clocks on <code>idempotency_keys</code> - <code>lease_expires_at</code>, the ownership horizon, and <code>expires_at</code>, the 24-hour replay horizon - and v0.4 CL-19 stated the ownership rule in words and then failed to carry it into two of its own predicates:</p>
+<ul>
+<li><span class="tag">The words.</span> CL-19 provides that renewal after expiry is not permitted, and explains why: "an expired-but-unreclaimed lease is not ownership, because a reclaimer may already have read the expired state and be between its read and its conditional update". The renewal predicate therefore requires <code>lease_expires_at &gt; now()</code> in addition to status and token.</li>
+<li><span class="tag">The predicates.</span> The completion row of the same table requires only <code>status = 'in_progress'</code> and <code>claim_token = :caller_token</code>, with the justification that "completion carries no lease-time condition of its own: the token is the fence". The worker-reported failure row is identical in shape.</li>
+</ul>
+<p>Both cannot be the ownership model. Under the predicates as written, a worker whose lease has expired - and who therefore, by the section's own reasoning, no longer owns the claim - can still complete the operation, or report it failed, at any moment before a reclaimer or the sweeper happens to rotate the token. The window is not theoretical: it is exactly the interval CL-19's renewal reasoning identifies, between expiry and the next transition, and it widens whenever reclaim traffic is light - which is precisely when an abandoned, slow or partitioned worker is most likely to reappear. A completion recorded in that window commits financial work under a claim the design elsewhere says the worker does not hold; a failure recorded in that window discards a claim a reclaimer is about to pick up.</p>
+<p>The inconsistency also reaches a test. v0.4 T-27(r) asserts that a worker whose renewal failed after expiry sees its "subsequent completion attempt also affect zero rows <span class="tag">once a reclaim has rotated the token</span>" - wording that concedes completion succeeds if no reclaim has occurred, contradicting the ownership rule the same amendment states. Section 2 below adopts the recommended rule and removes the contradiction rather than re-describing it: the token fences out a displaced worker, and the lease condition fences out an expired one; both are required, for every worker-initiated transition.</p>
+</div>
+<div class="footer"><span>CL-24 - Expired-worker completion and failure fencing</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change - one ownership rule for every worker transition</h3>
+<p>Supersedes the completion and worker-reported failure rows of the predicate table in v0.4 CL-19 section 2, and the completion justification sentence that follows that table. The ownership rule for <code>idempotency_keys</code> is now uniform:</p>
+<div class="verdict">
+<p>A worker owns a claim only while all three hold: the row is <code>in_progress</code>, the presented <code>claim_token</code> matches, and <code>lease_expires_at</code> is later than the database clock at the moment the transition executes. Every worker-initiated transition - renewal, completion, worker-reported failure - requires all three conditions. No worker-initiated transition is exempt.</p>
+</div>
+<table>
+<tr><th style="width:22%">Operation</th><th>Required predicate (all conditions) and effect on success - revised rows only</th></tr>
+<tr><td>Completion</td><td><code>status = 'in_progress' AND claim_token = :caller_token AND lease_expires_at &gt; now()</code>. Performed as the last write of the work transaction, as CL-14 requires. Effect: <code>status = 'completed'</code>, <code>completed_at</code> set, the operation's typed result reference set, <code>lease_expires_at = NULL</code>. <span class="tag">Zero rows: the worker has lost ownership - the entire work transaction rolls back, discarding all of its results; nothing is partially recorded.</span></td></tr>
+<tr><td>Worker-reported failure</td><td><code>status = 'in_progress' AND claim_token = :caller_token AND lease_expires_at &gt; now()</code>. Effect: <code>status = 'failed'</code>, <code>lease_expires_at = NULL</code>. <span class="tag">Zero rows: the worker has lost ownership and writes nothing further;</span> the row's state is whatever the winning transition left. A same-hash retry may re-claim a row failed this way immediately, as CL-14 already allowed.</td></tr>
+</table>
+<p class="small">All other rows of the v0.4 CL-19 predicate table - lease renewal, retry-driven reclaim, cap transition, sweeper failure transition, purge - are unchanged. The common identity conditions of that table (merchant, operation, key and <code>request_hash</code> match; a hash mismatch is the CL-04 conflict error in every state) apply to the revised rows exactly as before.</p>
+<p><span class="tag">Consequences, stated rather than implied.</span> A worker cannot renew, complete or report failure after its lease expires - the three prohibitions now rest on one rule instead of on a rule for renewal and an exception for the other two. Token rotation on reclaim remains mandatory and unchanged: it is still the mechanism that fences out a worker displaced by an actual reclaim, and the lease condition does not replace it, because a reclaimed row's new lease is live and only the rotated token distinguishes the new owner from the old. Reclaim and sweeper behaviour are unchanged: both already key on the expired lease (<code>lease_expires_at &lt;= now()</code>), and this finding gives them no new authority.</p>
+<p><span class="tag">The operational duty this creates.</span> Because completion is the last write of a work transaction, a long-running operation must renew its lease - while the lease is still live - so that the lease is unexpired at completion time. A worker that lets its lease lapse mid-operation loses the operation, however much work it has done, and the work rolls back. That is the intended semantics of a lease, and it is why the lease duration remains an operational default (ADAPT, CL-14) to be chosen against real operation durations in the verification environment - not a reason to exempt completion from the condition.</p>
+</div>
+<div class="footer"><span>CL-24 - Expired-worker completion and failure fencing</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>3. Affected sections and tables</h3>
+<p>v0.4 CL-19 section 2, predicate table (completion and worker-reported failure rows superseded; the paragraph justifying a lease-free completion predicate is deleted); v0.4 CL-19 section 4 (the sentence describing completion as fenced by token alone is read subject to section 2 above); v0.3 CL-14 sections 2 and 4 (any statement that completion or worker-reported failure turns on token match alone is superseded by the uniform ownership rule); Section I test T-27 (part (r) narrowed, parts (u)-(z) added - section 5 below). Table <code>idempotency_keys</code>: no schema change. The predicates run entirely on the CL-04 / CL-14 columns. Claim-token fencing, same-transaction completion, atomic reclaim, <code>attempt_count</code> and the configured attempt cap (design default 5, ADAPT) are preserved.</p>
+<h3>4. Constraint or transaction-level enforcement</h3>
+<p><span class="tag">Single conditional updates, as before.</span> Each transition remains one statement whose predicate is evaluated against the row under PostgreSQL's row lock. Adding the lease condition changes which predicate can be observed true; it introduces no check-then-update sequence and no new locking. All clock comparisons use the database clock at statement execution, never a worker-supplied timestamp, exactly as CL-19 already required - a skewed worker clock can no more complete an expired claim than it could renew one.</p>
+<p><span class="tag">Exactly one transition wins each race.</span> A completion racing a reclaim serialises on the row lock: if the completion executes first while its lease is still live, it commits and the reclaim's expired-lease condition is then false against a <code>completed</code> row; if the lease has expired before the completion executes, the reclaim (or sweeper) condition is the one that can be true, the token rotates or the row fails, and the completion affects zero rows. There is no interleaving in which both succeed, because both predicates cannot be true of the same locked row state, and the second to execute re-evaluates against the state the first committed. The same argument covers failure racing the sweeper.</p>
+<p><span class="tag">Rollback is part of the predicate's meaning.</span> Completion is the last write of the work transaction (CL-14). A zero-row completion is therefore not a status the caller may shrug off: the transaction cannot commit, because committing it would persist financial results with no completed idempotency record - the duplicate-execution hole CL-14 exists to close. The design states this as a rule of the shared idempotency component (v0.1 Section H), not as guidance to individual callers.</p>
+<p><span class="tag">State-to-column CHECK unchanged.</span> The CL-14 CHECK (completed and failed rows have <code>lease_expires_at</code> NULL; in-progress rows have it NOT NULL with result references NULL) continues to hold after every transition above; each revised predicate's effect maintains exactly that.</p>
+</div>
+<div class="footer"><span>CL-24 - Expired-worker completion and failure fencing</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>5. Updated test scenario</h3>
+<p><span class="tag">T-27(r) (narrowed).</span> The renewal assertions are retained: renewal before expiry succeeds and extends the lease; renewal attempted after expiry, with no reclaimer yet, affects zero rows. The closing clause - that the worker's subsequent completion affects zero rows once a reclaim has rotated the token - is superseded by part (v) below, which asserts the stronger outcome that no reclaim is needed.</p>
+<p><span class="tag">T-27(u)-(z) (new) - Expired-worker fencing.</span> All parts run against the CL-04 / CL-14 / CL-19 lifecycle as amended by this finding, with the database clock as the only time source:</p>
+<ul>
+<li><span class="tag">(u) Completion before lease expiry.</span> A worker completes while <code>status</code>, token and live lease all hold: the conditional update affects one row, the work transaction commits, and a same-key replay returns the stored result without re-executing (CL-14 replay behaviour, unchanged).</li>
+<li><span class="tag">(v) Completion after lease expiry, no reclaimer.</span> The lease expires; no retry, reclaim or sweeper action occurs; the original worker attempts completion with the original token. Expected: zero rows; the work transaction rolls back in full; the key row remains <code>in_progress</code> with its original token and expired lease, awaiting reclaim or the sweeper.</li>
+<li><span class="tag">(w) Worker-reported failure after lease expiry, no reclaimer.</span> As (v), with a failure report instead of completion. Expected: zero rows; the row is not failed by the expired worker and remains reclaimable; a subsequent same-hash retry reclaims it under a rotated token.</li>
+<li><span class="tag">(x) Completion racing a reclaimer.</span> At the expiry boundary, the original worker's completion and a retry-driven reclaim execute concurrently. Expected: exactly one transition wins - either the completion commits (lease still live at execution) or the reclaim rotates the token and the completion affects zero rows and rolls back. The operation's financial effects exist at most once.</li>
+<li><span class="tag">(y) Failure racing a sweeper.</span> The expired worker's failure report and the sweeper transition execute concurrently. Expected: exactly one wins; the row ends <code>failed</code> by one route only, with <code>lease_expires_at</code> NULL, and the losing statement affects zero rows and writes nothing.</li>
+<li><span class="tag">(z) Rollback on zero-row completion.</span> Force the (v) outcome inside a work transaction that has already written operation results in earlier statements. Expected: on rollback, none of those writes persists; no run, batch or result row references a completion that was never recorded.</li>
+</ul>
+<h3>6. Status</h3>
+<div class="verdict">
+<p><span class="tag">Design-resolved; implementation verification outstanding.</span> CL-14 and CL-19 now state one ownership model, and every worker-initiated predicate expresses it. The alternative - a token-only model in which expiry ends nothing until a transition occurs - was not adopted: it would leave the expired-but-unreclaimed window governed by whichever process happened to run next, which is the defect CL-19's renewal rule already recognised. The race outcomes in T-27(x) and (y) are argued from row-lock serialisation and must be demonstrated under concurrent load in the B-3 environment before this finding is treated as verified.</p>
+</div>
+</div>
+<div class="footer"><span>CL-24 - Expired-worker completion and failure fencing</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>CL-25 - Session renewal and the shared-user lock protocol</h2>
+<h3>1. Original problem</h3>
+<p>v0.4 CL-20 replaced CL-15's membership-row locking with a uniform protocol: a transaction-scoped advisory lock keyed by <code>user_id</code>, acquired before reading or writing protected state, shared by membership creation, invitation creation and acceptance, reactivation, eligibility-affecting status changes, session creation, and workspace Stage 2 anonymisation. Its Stage 2 recheck asks three questions under the lock, one of which is whether a live session exists for the user - no <code>user_sessions</code> row that is unrevoked and unexpired.</p>
+<p>The protocol's operation list, however, names only one session operation: creation. It is silent about every operation that can make an existing session live again or keep it live longer:</p>
+<ul>
+<li><span class="tag">Renewal or refresh</span> - a refresh operation that extends a session's validity, whether or not it also rotates any credential material.</li>
+<li><span class="tag">Expiry extension</span> - any update that moves a session's expiry later, including sliding-expiry behaviour on ordinary authenticated activity, if the design supports it.</li>
+<li><span class="tag">Reactivation</span> - any operation that returns an expired session to live status, if supported.</li>
+</ul>
+<p>The hole is the CL-20 hole in miniature. CL-20 existed because a lock taken only over existing rows cannot stop the insert racing it. Here, session creation takes the lock, but a renewal transaction that does not would not wait for Stage 2 and would not be waited for by it: Stage 2 could recheck, correctly find no live session, and anonymise a user whose session a concurrent refresh has just extended - leaving a live session attached to an anonymised identity, and a refresh path by which that identity continues to act. CL-20's recheck is only as sound as the completeness of the list of operations that take the lock, and the list was incomplete on exactly the side the recheck reads.</p>
+<p>Two related silences are corrected with it. CL-20 never stated whether session revocation and deletion participate in the protocol, leaving an implementer to guess in both directions. And it never stated what follows if an implementation offers no renewal operation at all - whether the gap is then closed by absence, and what in the schema would make that absence real rather than accidental.</p>
+</div>
+<div class="footer"><span>CL-25 - Session renewal and the shared-user lock protocol</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change - the protocol covers liveness, not just creation</h3>
+<p>Extends the operation list in v0.4 CL-20 section 2. The rule is stated by effect, so that no naming variation escapes it:</p>
+<div class="verdict">
+<p>Every transaction whose effect can be that a live session exists for a user after it commits, where none need have existed before, must acquire the CL-20 transaction-scoped per-user advisory lock for that <code>user_id</code> before it reads or modifies the relevant session or membership state, and must hold it to commit.</p>
+</div>
+<table>
+<tr><th style="width:34%">Operation class</th><th style="width:14%">Lock?</th><th>Reason</th></tr>
+<tr><td>Session creation (sign-in, invitation acceptance that signs in, any first issuance)</td><td>Required</td><td>Already in CL-20; restated so the full list lives in one place.</td></tr>
+<tr><td>Session renewal or refresh, including any refresh that rotates session material and issues a replacement</td><td>Required</td><td>Its effect is a live session after commit. A rotation that revokes the old row and creates a new one is a creation-class operation, not a revocation.</td></tr>
+<tr><td>Any operation that extends session expiry, including sliding expiry applied on activity</td><td>Required</td><td>Extension is renewal by effect, whatever the endpoint is called.</td></tr>
+<tr><td>Reactivation of an expired session, if supported</td><td>Required</td><td>It converts an ineligible-blocking state (no live session) into its opposite under exactly the condition Stage 2 tests.</td></tr>
+<tr><td>Pure session revocation (logout, administrative revoke) that creates and extends nothing</td><td>Not required</td><td>Stated explicitly in section 2 (continued) below.</td></tr>
+<tr><td>Session deletion or expiry sweeping that creates and extends nothing</td><td>Not required</td><td>Same reasoning as revocation.</td></tr>
+</table>
+<h3>2. Exact proposed change (continued) - revocation, deletion, and Stage 2</h3>
+<p><span class="tag">Why revocation and deletion stand outside the lock.</span> Revocation and deletion can only move a session away from liveness; neither can create, extend or restore one. The worst outcome of either racing Stage 2 is therefore conservative in the safe direction: Stage 2's recheck, reading committed state under its lock, may see a session that a concurrent revocation is about to end and defer an anonymisation that could have proceeded. A deferred anonymisation is a safe, retryable outcome; the protocol reserves its locking duty for operations that can produce the unsafe outcome - a live session for an anonymised user - and those are the creation-class operations above. This is a deliberate asymmetry, stated so that no implementer "completes" the protocol by locking revocation (harmless but unnecessary contention on every logout) or, worse, reasons in reverse that because revocation needs no lock, renewal needs none either.</p>
+<p><span class="tag">Stage 2, unchanged in form, now sound in substance.</span> Stage 2 continues to acquire the per-user lock for each candidate in ascending lock-key order and to recheck eligibility under the lock, including the live-session condition exactly as CL-20 states it: no <code>user_sessions</code> row for the user that is unrevoked and unexpired. With renewal, refresh, extension and reactivation inside the protocol, that recheck is no longer defeasible by a session operation: any transaction that could make a session live either committed before the recheck (and is visible to it) or waits until Stage 2 commits, at which point it reads the anonymised <code>users</code> row and the application's own rules decide whether a session may be issued to it - with the database-level guarantee, asserted by test T-30(p) below, that the anonymisation is never the outcome that loses the race silently.</p>
+</div>
+<div class="footer"><span>CL-25 - Session renewal and the shared-user lock protocol</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<p><span class="tag">If renewal is impossible by design.</span> This amendment does not assert that the product will or will not offer session renewal; that is an application decision the database design does not need. What it removes is the ambiguous middle state. An implementation that offers no renewal must make that a stated design constraint, not an accident of the first version: no operation in the session lifecycle may update a session's expiry to a later value or clear its revoked or expired state, and the session component (v0.1 Section H) records the constraint alongside the protocol list, so a future refresh feature is visibly a protocol change - it joins the lock list in the same change that introduces it - rather than a quiet addition that reopens this finding. Conversely, an implementation that does offer renewal needs no schema support beyond the session row it already maintains: the constraint this finding adds is the lock, not a column.</p>
+<h3>3. Affected sections and tables</h3>
+<p>v0.4 CL-20 section 2 (the protocol's operation list gains the renewal, refresh, expiry-extension and reactivation classes, and the revocation / deletion position); v0.4 CL-20 section 4 (the Stage 2 recheck paragraph is read with the completed list); v0.1 Section C, table <code>user_sessions</code> (access protocol only); Section G (Stage 2 procedure note); Section H (session component records the lock list and, if applicable, the no-renewal constraint); Section I tests T-30(m)-(p) (new, section 5 below), alongside the CL-20 extensions T-25 and T-30(h)-(l), which are unchanged. No table, column or constraint changes. No privilege changes: advisory locks require no table privilege and confer none, as CL-20 already established.</p>
+<h3>4. Constraint or transaction-level enforcement</h3>
+<p><span class="tag">Protocol enforcement, honestly labelled - as in CL-20.</span> Cross-table eligibility cannot be a CHECK (CL-17), and no trigger can compel a transaction to have taken an advisory lock it never requested. Enforcement is the protocol itself: one shared session component through which every creation-class session operation passes, stated as a design invariant in the CL-11 / CL-13 / CL-20 sense, with conformance demonstrated by the concurrency scenarios in section 5 rather than assumed. The lock key, namespace, transaction scoping and ascending-order discipline are exactly CL-20's; this finding adds operations to the protocol, not a second protocol.</p>
+<p><span class="tag">Stage 2 still fails closed.</span> If any per-user lock cannot be acquired within the maintenance transaction's bounded wait, Stage 2 aborts for that workspace rather than proceeding on a partial lock set - unchanged from CL-20, and now covering the case where the contending holder is a renewal transaction.</p>
+<p><span class="tag">What is preserved.</span> The tombstone merchant approach is unchanged: the <code>merchants</code> row is anonymised in place, <code>anonymised_at</code> is set, no <code>merchant_id</code> on any financial record is ever rewritten. A user with an active or invited membership in any other workspace is never anonymised. Stage 2 remains a maintenance transaction under the migrator role only. OD-16 and OD-17 remain open: this finding, like CL-20, strengthens mechanics only and decides neither retention periods nor the treatment of personal data inside append-only raw records.</p>
+</div>
+<div class="footer"><span>CL-25 - Session renewal and the shared-user lock protocol</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>5. Updated test scenario</h3>
+<p><span class="tag">T-30(m)-(p) (new) - Session lifecycle racing Stage 2.</span> Each part begins Stage 2 anonymisation for workspace A, where user U is a candidate whose memberships are ended and who has no live session at setup, and runs the named session operation for U concurrently. The asserted pattern is CL-20's either/or, extended to the session side:</p>
+<ul>
+<li><span class="tag">(m) Renewal racing Stage 2.</span> U holds an expired session; a renewal that would return it to live status runs concurrently with Stage 2. Expected: the two transactions serialise on U's per-user lock - either the renewal commits first and Stage 2's recheck finds a live session and defers anonymisation, or Stage 2 commits first and the renewal then proceeds, if at all, against an already-anonymised user under the application's own rules. Never: an anonymised user with a session made live by the racing renewal.</li>
+<li><span class="tag">(n) Creation racing Stage 2.</span> A fresh sign-in creating a session for U runs concurrently with Stage 2. Expected: the same either/or outcome as (m). This part re-asserts CL-20's session-creation coverage inside the completed protocol, so the creation and renewal cases are proven by one scenario family rather than assumed equivalent.</li>
+<li><span class="tag">(o) A session becoming live through refresh.</span> For every refresh-shaped operation the implementation supports - expiry extension, sliding expiry on activity, rotation issuing a replacement, reactivation of an expired session - repeat (m) using that operation. Expected: identical serialisation and identical either/or outcome for each shape. An implementation supporting none of them records that fact against the no-renewal constraint of section 2 instead, and this part is satisfied by the constraint's presence in the session component, not by a vacuous pass.</li>
+<li><span class="tag">(p) No live session for an anonymised user through a stale refresh.</span> After Stage 2 has anonymised U, present a refresh request carrying session material issued before the anonymisation, including one that was in flight while Stage 2 ran. Expected: U does not obtain a live session; the request fails or is refused under the application's rules, and no conforming database path exists by which it could have committed during the race.</li>
+</ul>
+<p>As in CL-20, parts (m) to (p) are also run under repeated concurrent load with the T-30(l) expectation: PostgreSQL deadlock detection may abort a participant, which the protocols treat as a retryable failure, never as a silent pass.</p>
+<h3>6. Status</h3>
+<div class="verdict">
+<p><span class="tag">Partially resolved - mechanics design-resolved; policy still open.</span> This mirrors CL-20's verdict deliberately: the serialisation gap on the session side is closed at design level by defining the protocol over session liveness rather than over one named operation, and the revocation / deletion position is no longer left to inference. OD-16 (grace window, retention periods, erasure-versus-retention conflict rule) and OD-17 (third-party personal data in append-only raw records) remain open for Bangladesh legal and policy review, exactly as before, and the protocol's behaviour under real concurrency - now including refresh traffic - is unverified until the B-3 environment exists.</p>
+</div>
+</div>
+<div class="footer"><span>CL-25 - Session renewal and the shared-user lock protocol</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>CL-26 - SECURITY DEFINER search_path hardening</h2>
+<h3>1. Original problem</h3>
+<p>v0.4 CL-22 specified the validation trigger context pattern in six rules: migrator-owned SECURITY DEFINER functions without BYPASSRLS (Rule 1); <code>merchant_id</code> derived from the firing rows, never from caller context (Rule 2); an owner-only validation SELECT policy keyed to a transaction-local setting (Rule 3); explicit tenant predicates on every query (Rule 4); a fail-closed anchor check (Rule 5); and no privilege reaching the runtime role (Rule 6). The pattern constrains whose privileges the function executes with, which rows its policies admit, and what it does when it cannot see its evidence. It never constrains <span class="tag">which objects the function's unqualified names resolve to</span>.</p>
+<p>That omission matters because of how a SECURITY DEFINER function resolves names. The function executes with its owner's privileges, but unless the function itself fixes a <code>search_path</code>, name resolution follows the path in effect for the session that caused the trigger to fire - in this design, an application session under the runtime role's control. A schema that an untrusted role can create objects in, placed earlier on that path than the schema holding the real validation tables and helper objects, can shadow them: a same-named table, view or function is resolved instead of the intended one. For an ordinary function the consequence is wrong results. For a validation function the consequence is worse and quieter - validation that reads attacker-shaped rows, or calls an attacker-shaped helper, and passes. Rules 3 to 5 do not close this: explicit tenant predicates (Rule 4) constrain rows, not object identity, and the anchor check (Rule 5) proves the function can see <span class="tag">a</span> row through its queries, not that the object it queried is the table the design means.</p>
+<p>A second, smaller imprecision travels with it. Rule 6 states that EXECUTE on validation functions "is not granted to the runtime role". In PostgreSQL, however, EXECUTE is granted to PUBLIC by default at function creation; a function from which nothing was explicitly revoked is callable by every role, trigger-type return or not. "Not granted" is therefore not a state an implementer can rely on - the revocation must be an explicit step, or Rule 6's defence in depth does not exist. Section 2 adds the missing rule and corrects the revocation wording inside the same finding, since both concern how the function is reached and resolved rather than what it validates.</p>
+</div>
+<div class="footer"><span>CL-26 - SECURITY DEFINER search_path hardening</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>2. Exact proposed change - Rule 7 joins the CL-22 pattern</h3>
+<p>Adds a seventh rule to the validation trigger context pattern in v0.4 CL-22 section 2. Rules 1 to 6 are retained in full - owner and execution mode, merchant derivation from firing rows, owner-only validation policy, explicit tenant predicates, fail-closed anchor check, no general-purpose RLS bypass - and Rule 7 is mandatory for every SECURITY DEFINER validation function in the design, on the same terms (design notation throughout, ADAPT):</p>
+<p><span class="tag">Rule 7 - The function carries its own restricted search_path, and its objects are qualified.</span></p>
+<ul>
+<li><span class="tag">(a) Fixed at the function, not the session.</span> Every validation function is created or altered with its own <code>search_path</code> setting attached to the function definition, so the path that governs its name resolution is the one recorded with the function, whoever fires the trigger and whatever path the calling session has set. A session-level or role-level path is not a substitute and is not relied on.</li>
+<li><span class="tag">(b) Trusted schemas only, by one principle.</span> The path names only schemas that satisfy a single test: <span class="tag">the migrator / validation-owner role controls object creation in the schema, and no other role - including PUBLIC - holds CREATE on it.</span> In practice this is the application schema holding the validated tables and the validation functions, together with the system catalog schema, which PostgreSQL resolves first in any case and which no application role can write to. Any schema failing the test - a general-purpose schema, a per-user schema, any schema with a standing CREATE grant to an application or untrusted role - must not appear in the path. The principle, not the schema names, is the invariant: an implementation with differently named schemas applies the test, not this paragraph's examples.</li>
+<li><span class="tag">(c) Temporary objects cannot shadow.</span> Because a session can create temporary objects under names matching real ones, the function's fixed path and rule (d) together are the defence: resolution inside the function never depends on the calling session's temporary objects, and a reviewer must be able to confirm that no unqualified reference in the function body could bind to a session-created object.</li>
+<li><span class="tag">(d) Schema qualification as the second line.</span> Every reference to an application or validation object inside a validation function - every table, view, sequence and helper function - is written schema-qualified, so that even a path misconfiguration has nothing unqualified to redirect. An unqualified application-object reference in a validation function body is a review defect under the same drafting discipline CL-22 Rule 4 applies to missing tenant predicates.</li>
+<li><span class="tag">(e) No dynamic SQL.</span> Validation functions contain no dynamically constructed statements. Validation needs are fixed queries against known tables, so the prohibition costs nothing; it removes the one channel through which parameterised-looking code can still assemble an unqualified or caller-influenced object name. If a future validation genuinely cannot be expressed without dynamic SQL, it returns as an amendment; the exception is not available by implementer discretion. Any such future exception would require, at minimum, schema-qualified object names and strict identifier quoting of every interpolated name - stated here so the floor for that argument is known in advance.</li>
+</ul>
+</div>
+<div class="footer"><span>CL-26 - SECURITY DEFINER search_path hardening</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<p><span class="tag">(f) Ownership and RLS posture unchanged.</span> Rule 7 alters neither: each function remains owned by the non-superuser migrator role, which does not carry BYPASSRLS (Rule 1), and every validated table keeps RLS ENABLE with FORCE in force. A fixed <code>search_path</code> is a name-resolution control; it grants no row access, and the owner-only validation policy of Rule 3 remains the only route by which the function's reads are admitted.</p>
+<p><span class="tag">(g) The runtime role gains nothing - and the default grant is revoked.</span> Corrects the wording of CL-22 Rule 6. The runtime role receives no additional grant, no role membership and no direct execution permission on any validation function. Because PostgreSQL grants EXECUTE to PUBLIC when a function is created, conformance requires an <span class="tag">explicit revocation</span> of that default grant for every validation function, recorded as a step in the migration pattern (ADAPT) rather than left as an assumption about what was never granted. Direct invocation remains defence in depth - a trigger function cannot usefully be called outside trigger context - but the design now states the revocation instead of implying it.</p>
+<h3>3. Affected sections and tables</h3>
+<p>v0.4 CL-22 section 2 (new Rule 7; Rule 6's EXECUTE wording corrected by (g) above); v0.1 Section E (the validation trigger context pattern gains the <code>search_path</code>, trusted-schema and revocation requirements, and the CL-11 deployment check gains the corresponding verification items in section 4); Section I test T-32(g)-(h) (new, section 5 below). The pattern applies to every deferred constraint-trigger function in the design, as CL-22 already provided: the CL-01 status trigger, the CL-13 chain trigger as scoped by CL-18 and staged by CL-23, and the CL-16 variance trigger. No table, column or constraint changes. Tenant isolation is not weakened: Rule 7 narrows what a privileged function can resolve to; it widens no role's access to anything.</p>
+<h3>4. Constraint or transaction-level enforcement</h3>
+<p><span class="tag">Pattern conformance remains a review gate, now with a catalog check.</span> As CL-22 established, implementation review checks each validation function against the rules in order; Rule 7 adds two mechanically checkable items to that review: the function's recorded configuration carries the restricted <code>search_path</code>, and its body contains no unqualified application-object reference and no dynamic statement construction. The first of these is verifiable from the system catalog at deployment time, and the CL-11 deployment check gains it explicitly: for every validation function, the deployed database must show the function-level path setting, the explicit EXECUTE revocation, and the absence of CREATE grants to untrusted roles (including PUBLIC) on every schema in that path. A deployment failing any of the three is non-conforming before any test runs.</p>
+<p><span class="tag">Failure mode is refusal, not redirection.</span> If a trusted schema is misconfigured so that the function's qualified references cannot resolve, the function errors and the firing transaction aborts - the same fail-closed posture as Rule 5, extended from rows to objects. Under no configuration does a validation function fall back to resolving an object from a caller-controlled schema and proceed.</p>
+</div>
+<div class="footer"><span>CL-26 - SECURITY DEFINER search_path hardening</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h3>5. Updated test scenario</h3>
+<p><span class="tag">T-32(g)-(h) (new) - Object resolution under attack.</span> Executed, like the rest of T-32, as the runtime role against a database with RLS ENABLE + FORCE and the production policy and grant set - explicitly not as the migrator or a superuser:</p>
+<ul>
+<li><span class="tag">(g) Shadow object.</span> From a runtime-role session, set a session <code>search_path</code> that places a schema the runtime role controls ahead of the application schema, and create in that schema a shadow object bearing the name of an object a validation function uses - a same-named table holding rows shaped to make an inconsistent transaction appear consistent (and, in a second attempt, a temporary object of the same name). Then commit the T-32(a) transaction: a result whose findings contradict its stored overall status. Expected: the deferred validation still rejects at commit; the function resolved only its intended, schema-qualified objects in its trusted schemas; the shadow object was neither read as evidence nor executed; and a subsequent consistent transaction (T-32(d)) still commits, proving the attack did not merely break validation into refusing everything.</li>
+<li><span class="tag">(h) Trusted-schema integrity.</span> As the runtime role, attempt to create any object in a schema named in a validation function's <code>search_path</code>: refused, for want of CREATE. Inspect the catalog as the maintenance role: every validation function shows its function-level <code>search_path</code> setting restricted to trusted schemas, and no validation function shows an EXECUTE grant reachable by the runtime role, whether directly or through PUBLIC. Any function failing either catalog assertion is a deployment defect under section 4, independent of the behavioural result in (g).</li>
+</ul>
+<p>T-32(a) to (f) are unchanged, including the fail-closed assertion (f): disabling the validation policy must produce a Rule 5 refusal, and Rule 7 does not alter that expectation - a function that cannot see its anchor rows raises, whatever its path.</p>
+<h3>6. Status</h3>
+<div class="verdict">
+<p><span class="tag">Design-resolved; implementation verification outstanding.</span> The CL-22 pattern now constrains privileges, policies, predicates, failure behaviour and name resolution - the five ways a caller could otherwise influence what a validation function does. The shadow-object scenario is, like the rest of T-32, exactly the kind of behaviour that must be demonstrated against the actual PostgreSQL version, roles, grants and RLS configuration in the B-3 environment; SECURITY DEFINER resolution is specified here, not proven, and this finding is not treated as verified until T-32(g) and (h) have run there.</p>
+</div>
+</div>
+<div class="footer"><span>CL-26 - SECURITY DEFINER search_path hardening</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>Consolidated test changes</h2>
+<p>Section I of v0.1, as amended by v0.2, v0.3 and v0.4, stands except as listed here. This table is the complete delta from this amendment. No test is claimed to have passed: these are design-stage scenarios for the future M1 test suite, and the concurrency, fixture and RLS scenarios among them can only be executed once the B-3 verification environment exists.</p>
+<table>
+<tr><th style="width:14%">Test</th><th style="width:12%">Change</th><th>Effect of this amendment</th></tr>
+<tr><td>T-26(e)</td><td>Revised (CL-23)</td><td>Malformed two-root history is built solely by the load-before-trigger procedure: rows loaded before the CL-13 trigger is created, trigger then created from the production definition, all detection assertions run with the trigger fully active. Any suppression, disabling or dropping of the trigger makes the test non-conforming.</td></tr>
+<tr><td>T-26(h)</td><td>Reaffirmed</td><td>Unchanged. In the same fixture database, ordinary inserts by the runtime role and by the migrator role cannot commit a newly introduced malformation.</td></tr>
+<tr><td>T-27(r)</td><td>Narrowed (CL-24)</td><td>Renewal assertions retained. The closing clause, under which completion by an expired worker failed only after a reclaim rotated the token, is deleted and replaced by T-27(v).</td></tr>
+<tr><td>T-27(u)-(z)</td><td>New (CL-24)</td><td>(u) completion before expiry commits and replays; (v) completion after expiry with no reclaimer affects zero rows and rolls back; (w) worker-reported failure after expiry likewise; (x) completion racing a reclaimer - exactly one transition wins; (y) failure racing a sweeper - exactly one wins; (z) zero-row completion rolls back the whole work transaction, leaving no orphan results.</td></tr>
+<tr><td>T-30(m)-(p)</td><td>New (CL-25)</td><td>(m) renewal racing Stage 2; (n) session creation racing Stage 2; (o) a session becoming live through each supported refresh shape - or, where none is supported, the recorded no-renewal constraint; (p) an anonymised user cannot obtain a live session through a stale or in-flight refresh.</td></tr>
+<tr><td>T-32(g)-(h)</td><td>New (CL-26)</td><td>(g) shadow-object attack via a caller-controlled schema and via a temporary object: validation still resolves only its trusted, qualified objects and still rejects the inconsistent commit; (h) CREATE in a trusted schema refused to the runtime role, and catalog assertions for the function-level <code>search_path</code> and the explicit EXECUTE revocation.</td></tr>
+</table>
+<p class="small">Tests T-01 to T-25, T-26(a)-(d), (f), (g), T-27(a)-(q), (s), (t), T-28, T-29, T-30(a)-(l), T-31 and T-32(a)-(f) are unchanged by this amendment.</p>
+</div>
+<div class="footer"><span>Consolidated test changes</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>Invariant traceability delta</h2>
+<p>The appendix invariant traceability of v0.1, as amended, stands except for the rows below. Each row names the invariant an earlier amendment established, the v0.5 finding that touches it, and the precise sense in which it is preserved, narrowed or strengthened. No invariant is weakened anywhere in this amendment.</p>
+<table>
+<tr><th style="width:30%">Invariant (source)</th><th style="width:12%">Finding</th><th>Delta</th></tr>
+<tr><td>CL-13 linear decision chain; trigger rejects malformed histories (v0.3 CL-13, v0.4 CL-18)</td><td>CL-23</td><td><span class="tag">Preserved.</span> Trigger definition, delta scope, chain invariant and detection derivation unchanged. Only the staging of test data changes: one fixture route instead of two.</td></tr>
+<tr><td>Append-only match decision history (v0.2 CL-03 / CL-07)</td><td>CL-23</td><td><span class="tag">Preserved.</span> The fixture is loaded data in a disposable database; no production or application path gains any ability to write outside the append-only model.</td></tr>
+<tr><td>Idempotency: no duplicate financial operations; lease separate from replay horizon; claim-token fencing; attempt cap (v0.2 CL-04, v0.3 CL-14, v0.4 CL-19)</td><td>CL-24</td><td><span class="tag">Strengthened.</span> Ownership now requires a live lease for every worker-initiated transition, not renewal alone. Token rotation, atomic reclaim, same-transaction completion, the 24-hour horizon and the cap are unchanged.</td></tr>
+<tr><td>Purge never touches a live claim (v0.4 CL-19)</td><td>CL-24</td><td><span class="tag">Preserved.</span> Purge eligibility, the sweeper and reclaim predicates, and the maintenance-only DELETE grant are untouched by this amendment.</td></tr>
+<tr><td>Tombstone merchant; shared user never anonymised with a live membership elsewhere; Stage 2 rechecks under lock (v0.3 CL-15, v0.4 CL-20)</td><td>CL-25</td><td><span class="tag">Strengthened.</span> The recheck's live-session condition is now backed by a protocol covering every operation that can produce a live session. <code>merchant_id</code> immutability and the tombstone approach are unchanged.</td></tr>
+<tr><td>Tenant isolation under ENABLE + FORCE RLS; no general-purpose bypass (v0.1 Section E, v0.2 CL-11, v0.4 CL-22)</td><td>CL-26</td><td><span class="tag">Strengthened.</span> CL-22 Rules 1-6 retained in full; Rule 7 fixes name resolution inside the privileged functions the pattern already relies on, and Rule 6's EXECUTE position is made real by explicit revocation.</td></tr>
+<tr><td>V2.2.1 financial semantics: formulas, identities, BIGINT poisha, per-component half-up rounding, NULL versus verified zero, D<sub>c</sub> confirmation plus evidence (V2.2.1; v0.2 CL-01, CL-02)</td><td>All</td><td><span class="tag">Preserved without modification.</span> No finding in this amendment touches a formula, a fee-base rule, a rounding rule or a status derivation.</td></tr>
+<tr><td>31-table design (v0.1 as amended to v0.4)</td><td>All</td><td><span class="tag">Preserved.</span> No table, column, index or status added or removed by v0.5.</td></tr>
+</table>
+</div>
+<div class="footer"><span>Invariant traceability delta</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>Change log - v0.4 to v0.5</h2>
+<p class="small">Vocabulary as in v0.4: <span class="tag">Corrects</span> - the earlier text was wrong or internally inconsistent and is replaced. <span class="tag">Clarifies</span> - the earlier text was ambiguous or silent; one reading is fixed. <span class="tag">Adds</span> - new material with no direct counterpart. <span class="tag">Strengthens</span> - an existing mechanism is replaced or extended by a strictly stronger one for a demonstrated reason. <span class="tag">Removes</span> - material deleted, with the reason recorded in its finding.</p>
+<table>
+<tr><th style="width:12%">Finding</th><th style="width:14%">Kind</th><th>Change</th></tr>
+<tr><td>CL-23</td><td>Removes / Corrects</td><td>The replica-mode fixture route in v0.4 CL-18 section 2 is removed. The sentence describing a session-level trigger-suppression setting as available only to the table owner is corrected: the session-level setting is superuser-only, and the owner-level mechanism (trigger-disable DDL) is not session-scoped. Load-before-trigger is specified as a six-step procedure and made the sole permitted route; CL-18 section 4's fixture-discipline sentence is narrowed; T-26(e) is revised; the CL-11 deployment check gains a trigger-set verification item.</td></tr>
+<tr><td>CL-24</td><td>Corrects / Strengthens</td><td>The completion and worker-reported failure rows of the v0.4 CL-19 predicate table gain the condition <code>lease_expires_at &gt; now()</code>. The paragraph justifying a lease-free completion predicate is deleted. A uniform ownership rule for all worker-initiated transitions is stated. T-27(r) is narrowed and T-27(u)-(z) are added, covering the six required cases including both races and full rollback.</td></tr>
+<tr><td>CL-25</td><td>Clarifies / Strengthens</td><td>The v0.4 CL-20 protocol's operation list is extended by effect: renewal or refresh, expiry extension including sliding expiry, reactivation of an expired session, and rotation issuing a replacement are all creation-class operations requiring the per-user lock. Pure revocation and deletion are explicitly placed outside the lock, with the reasoning recorded. The position for implementations offering no renewal is stated as a recorded design constraint. T-30(m)-(p) are added.</td></tr>
+<tr><td>CL-26</td><td>Adds / Corrects</td><td>Rule 7 is added to the CL-22 pattern: function-level restricted <code>search_path</code> naming only trusted schemas under a single CREATE-control principle, protection against temporary-object shadowing, full schema qualification of application and validation objects, and a prohibition on dynamic SQL in validation functions. CL-22 Rule 6 is corrected so that removal of the runtime role's execution reach is an explicit revocation of the default PUBLIC grant. T-32(g)-(h) are added, and the CL-11 deployment check gains the catalog verification items.</td></tr>
+</table>
+<p>No other change is made by this amendment. In particular, nothing in v0.5 reopens CL-01 to CL-22 beyond the named details above, alters any open decision, or moves any gate.</p>
+</div>
+<div class="footer"><span>Change log - v0.4 to v0.5</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>Remaining blockers and open decisions</h2>
+<h3>Blocking any M1 implementation (unchanged from v0.1, v0.2, v0.3 and v0.4)</h3>
+<ul>
+<li><span class="tag">B-1. Market validation:</span> Day 7 and Day 14 gates not yet run; no interview evidence exists.</li>
+<li><span class="tag">B-2. Merchant-confirmed courier evidence:</span> none exists for any of Steadfast, Pathao, Paperfly, RedX or eCourier - no rule version can yet be populated without inventing contract semantics, which is prohibited.</li>
+<li><span class="tag">B-3. Docker + PostgreSQL verification environment not established.</span> No design SQL or mechanism in v0.1 to v0.5 has been executed. This amendment adds four items to that unverified list, and names them so they are tested first when the environment exists: the load-before-trigger fixture build order and T-26(h) boundary (CL-23); the expired-lease race behaviour of the revised completion and failure predicates, T-27(x), (y) and (z) (CL-24); advisory-lock serialisation under concurrent renewal and refresh traffic against Stage 2, T-30(m)-(p) (CL-25); and SECURITY DEFINER name resolution under a caller-controlled path, T-32(g) and (h) (CL-26). These join the five mechanisms v0.4 already listed under B-3, none of which this amendment re-verifies.</li>
+<li><span class="tag">B-4. Explicit production-readiness approval not given.</span></li>
+</ul>
+<h3>Open decisions carried forward</h3>
+<ul>
+<li><span class="tag">OD-12 (CL-02, v0.2)</span> - whether any real courier statement reports a negative net payout. Open until redacted merchant statements answer it. Untouched by this amendment.</li>
+<li><span class="tag">OD-16 (CL-12, v0.2)</span> - workspace grace-window length, Bangladesh financial retention period, and the erasure-versus-retention conflict rule. Requires policy and legal review. CL-25 supplies session-side serialisation mechanics; the periods and the conflict rule remain undecided. Blocks production launch, not design review.</li>
+<li><span class="tag">OD-17 (CL-15, v0.3)</span> - treatment of third-party personal data held inside append-only raw records when a workspace is anonymised. Interim position unchanged: sealed retention, excluded from anonymised exports, no runtime-role access. Requires the same Bangladesh legal review as OD-16. Blocks production launch, not design review.</li>
+<li><span class="tag">OD-11 (v0.1, narrowed by CL-17)</span> - guaranteeing at least one active owner per workspace: mechanism choice remains open. Untouched by this amendment.</li>
+<li><span class="tag">CL-11 deployment check (v0.2)</span> - the tenant-context trust boundary is specified; verifying a real deployment honours it remains a production-readiness task. This amendment adds three items to that check: the deployed trigger set matches the design with no fixture-suppression step in any production or maintenance procedure (CL-23); no production path depends on a token-only completion or failure transition (CL-24); and every validation function shows the Rule 7 path setting, the explicit EXECUTE revocation, and CREATE-free trusted schemas (CL-26).</li>
+</ul>
+<p>All other v0.1 open decisions OD-01 to OD-15 stand as written, except OD-11 and OD-12 as noted above.</p>
+</div>
+<div class="footer"><span>Remaining blockers and open decisions</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+
+<div class="page">
+<div class="body">
+<h2>Is the database design ready for schema freeze?</h2>
+<p><span class="tag">Ready to freeze as a design review baseline, as corrected by this amendment - with the three-way distinction this series has maintained kept explicit.</span></p>
+<p><span class="tag">Design freeze</span> means the text stops moving except by targeted amendment on a demonstrated contradiction. v0.4 reached that position and this amendment does not disturb it: the four findings here were precision defects inside mechanisms the freeze already contained, not missing mechanisms. One route was deleted because its privilege claim was wrong (CL-23); two predicates were brought into line with the ownership rule their own section stated (CL-24); a protocol's operation list was completed on the side its recheck reads (CL-25); and a pattern gained the name-resolution rule it had always implicitly assumed (CL-26). No finding required a new table, a formula change, a new status or a reopened decision. Freezing the schema design at v0.1 as amended by v0.2, v0.3, v0.4 and v0.5 - 31 tables, the CL-01 status model, the CL-13 to CL-16 histories, the CL-18 to CL-22 mechanisms, and the CL-23 to CL-26 corrections - is therefore recommended, in the same sense as v0.4 stated it: any further change requires a new targeted amendment with a demonstrated contradiction.</p>
+<p><span class="tag">Freeze is not implementation verification.</span> Every mechanism listed under B-3 remains unexecuted, and v0.5 adds four to that list rather than retiring any. A described predicate, lock protocol or path setting is a claim about PostgreSQL behaviour, and several of these claims - the race outcomes in T-27(x) and (y), the serialisation in T-30(m)-(p), the resolution behaviour in T-32(g) - are claims only a running database under the actual roles, grants, triggers and RLS configuration can settle. If the verification environment contradicts one of them, the freeze is reopened for that mechanism by a further amendment and the contradiction is recorded, exactly as v0.4 provided; it is not worked around in code.</p>
+<p><span class="tag">Freeze is not implementation authorisation.</span> Market validation, merchant-confirmed evidence and explicit production-readiness approval are all still outstanding (B-1, B-2, B-4). M1 production implementation remains gated behind them, and nothing in this amendment - including the word "freeze" - authorises a migration, a schema, a line of application code or a deployment.</p>
+<div class="callout blue">
+<p><span class="tag">Final statement.</span> With this amendment applied, the specification no longer contains a fixture route whose stated privilege no role holds (CL-23), an ownership rule that its completion and failure predicates contradict (CL-24), a lock protocol whose recheck can be defeated by renewing the thing it checks for (CL-25), or a privileged validation function whose object resolution a caller can redirect (CL-26). Each resolution is at design level only, and this amendment says so in each finding rather than letting a described mechanism read as a proven one. The design is ready for schema freeze as a review baseline. It is not verified, and it is not an authorisation to build.</p>
+</div>
+<p class="small">End of amendment v0.5. This amendment supersedes only the sections it explicitly names. All other content of the Database Design Specification v0.1 and of Technical Correction Amendments v0.2, v0.3 and v0.4 remains unchanged.</p>
+</div>
+<div class="footer"><span>CourierLedger M1 Database Design - Amendment v0.5 &nbsp;|&nbsp; Baselines: v0.1, v0.2, v0.3 and v0.4</span><span>Design only - M1 implementation remains gated</span></div>
+</div>
+</body>
+</html>

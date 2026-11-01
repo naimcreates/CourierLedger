@@ -1,0 +1,886 @@
+{
+  "ok": true,
+  "pdf": "/home/hatch/workspace/goals/courierledger-planning-and-market-validation/files/courierledger-m1-database-design-v02-amendment/courierledger-m1-database-design-v02-amendment.pdf",
+  "pages": 0,
+  "pngs": [],
+  "fonts": {
+    "missing": [],
+    "unused": [],
+    "used": [
+      "Liberation Sans",
+      "Liberation Mono"
+    ],
+    "expected": [
+      "Liberation Sans:400",
+      "Liberation Sans:700"
+    ]
+  },
+  "overflow": [],
+  "text_floor": [
+    {
+      "index": 0,
+      "runs": [
+        {
+          "pt": 8.3,
+          "chars": 1,
+          "max_node_chars": 1,
+          "sample": "c"
+        },
+        {
+          "pt": 8.5,
+          "chars": 161,
+          "max_node_chars": 138,
+          "sample": "AMENDMENT v0.2"
+        },
+        {
+          "pt": 10,
+          "chars": 1230,
+          "max_node_chars": 277,
+          "sample": "A targeted correction to the 36-page Dat"
+        },
+        {
+          "pt": 12,
+          "chars": 32,
+          "max_node_chars": 21,
+          "sample": "What this amendment does"
+        },
+        {
+          "pt": 15,
+          "chars": 32,
+          "max_node_chars": 32,
+          "sample": "Technical Correction Amendment v0.2"
+        },
+        {
+          "pt": 26,
+          "chars": 42,
+          "max_node_chars": 42,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 178,
+          "max_node_chars": 138,
+          "sample": "shipment_match_decisions"
+        },
+        {
+          "pt": 9,
+          "chars": 952,
+          "max_node_chars": 54,
+          "sample": "ID"
+        },
+        {
+          "pt": 10,
+          "chars": 583,
+          "max_node_chars": 169,
+          "sample": "Twelve corrections. Nine are fully resol"
+        },
+        {
+          "pt": 12,
+          "chars": 30,
+          "max_node_chars": 30,
+          "sample": "Conventions used in this amendment"
+        },
+        {
+          "pt": 14.5,
+          "chars": 18,
+          "max_node_chars": 18,
+          "sample": "Amendment at a glance"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "runs": [
+        {
+          "pt": 8.3,
+          "chars": 24,
+          "max_node_chars": 5,
+          "sample": "total"
+        },
+        {
+          "pt": 8.5,
+          "chars": 153,
+          "max_node_chars": 23,
+          "sample": "needs_review"
+        },
+        {
+          "pt": 9,
+          "chars": 314,
+          "max_node_chars": 40,
+          "sample": "Combination"
+        },
+        {
+          "pt": 10,
+          "chars": 1390,
+          "max_node_chars": 363,
+          "sample": "In v0.1 Section D.6, the status table ro"
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 66,
+          "max_node_chars": 66,
+          "sample": "CL-01 - Overall status classification: s"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "runs": [
+        {
+          "pt": 8.3,
+          "chars": 18,
+          "max_node_chars": 5,
+          "sample": "total"
+        },
+        {
+          "pt": 8.5,
+          "chars": 265,
+          "max_node_chars": 129,
+          "sample": "reconciliation_results.overall_status"
+        },
+        {
+          "pt": 10,
+          "chars": 1196,
+          "max_node_chars": 146,
+          "sample": "No new column is needed. The enforcement"
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "runs": [
+        {
+          "pt": 7.5,
+          "chars": 1,
+          "max_node_chars": 1,
+          "sample": "r"
+        },
+        {
+          "pt": 8.3,
+          "chars": 27,
+          "max_node_chars": 5,
+          "sample": "r"
+        },
+        {
+          "pt": 8.5,
+          "chars": 170,
+          "max_node_chars": 38,
+          "sample": "statement_lines.reported_payout_poisha"
+        },
+        {
+          "pt": 9,
+          "chars": 694,
+          "max_node_chars": 214,
+          "sample": "State"
+        },
+        {
+          "pt": 10,
+          "chars": 1247,
+          "max_node_chars": 178,
+          "sample": "v0.1 contradicts itself in three places "
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 61,
+          "max_node_chars": 61,
+          "sample": "CL-02 - Negative reported payout: one co"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "runs": [
+        {
+          "pt": 8.3,
+          "chars": 7,
+          "max_node_chars": 4,
+          "sample": "r"
+        },
+        {
+          "pt": 8.5,
+          "chars": 208,
+          "max_node_chars": 129,
+          "sample": "negative_payout_permitted"
+        },
+        {
+          "pt": 10,
+          "chars": 1261,
+          "max_node_chars": 296,
+          "sample": "State-to-value CHECKs per amount/state p"
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 309,
+          "max_node_chars": 25,
+          "sample": "shipment_match_candidates"
+        },
+        {
+          "pt": 10,
+          "chars": 1697,
+          "max_node_chars": 434,
+          "sample": "Section C describes"
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 54,
+          "max_node_chars": 54,
+          "sample": "CL-03 - Shipment match candidates: immut"
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 292,
+          "max_node_chars": 129,
+          "sample": "merchant_id, candidate_id"
+        },
+        {
+          "pt": 10,
+          "chars": 1373,
+          "max_node_chars": 409,
+          "sample": "Both tables sit in the v0.1 append-only "
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 360,
+          "max_node_chars": 28,
+          "sample": "import_batches"
+        },
+        {
+          "pt": 10,
+          "chars": 1637,
+          "max_node_chars": 299,
+          "sample": "v0.1 spreads idempotency across three pl"
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 46,
+          "max_node_chars": 46,
+          "sample": "CL-04 - Idempotency: one authoritative a"
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 203,
+          "max_node_chars": 129,
+          "sample": "status = in_progress"
+        },
+        {
+          "pt": 10,
+          "chars": 1988,
+          "max_node_chars": 361,
+          "sample": "Transaction boundary."
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 92,
+          "max_node_chars": 19,
+          "sample": "merchant_id"
+        },
+        {
+          "pt": 10,
+          "chars": 1249,
+          "max_node_chars": 225,
+          "sample": "Section C places UNIQUE ("
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 52,
+          "max_node_chars": 52,
+          "sample": "CL-05 - Determinism: identical inputs de"
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 129,
+          "max_node_chars": 129,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        },
+        {
+          "pt": 10,
+          "chars": 959,
+          "max_node_chars": 338,
+          "sample": "The unique constraint is the enforcement"
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 326,
+          "max_node_chars": 245,
+          "sample": "app_current_merchant_id()"
+        },
+        {
+          "pt": 10,
+          "chars": 1181,
+          "max_node_chars": 350,
+          "sample": "Section E defines"
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 52,
+          "max_node_chars": 52,
+          "sample": "CL-06 - Malformed tenant UUID in app_cur"
+        }
+      ]
+    },
+    {
+      "index": 13,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 178,
+          "max_node_chars": 129,
+          "sample": "merchant_id = app_current_merchant_id()"
+        },
+        {
+          "pt": 10,
+          "chars": 838,
+          "max_node_chars": 166,
+          "sample": "Policies are unchanged:"
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 14,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 68,
+          "max_node_chars": 24,
+          "sample": "audit_logs"
+        },
+        {
+          "pt": 10,
+          "chars": 1152,
+          "max_node_chars": 216,
+          "sample": "CL-07 is the audit-facing half of the CL"
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 49,
+          "max_node_chars": 49,
+          "sample": "CL-07 - Immutable matching decision hist"
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 129,
+          "max_node_chars": 129,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        },
+        {
+          "pt": 10,
+          "chars": 547,
+          "max_node_chars": 205,
+          "sample": "As CL-03 item 4: no UPDATE/DELETE policy"
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 16,
+      "runs": [
+        {
+          "pt": 8.3,
+          "chars": 20,
+          "max_node_chars": 1,
+          "sample": "c"
+        },
+        {
+          "pt": 8.5,
+          "chars": 371,
+          "max_node_chars": 24,
+          "sample": "reconciliation_fee_lines"
+        },
+        {
+          "pt": 10,
+          "chars": 1339,
+          "max_node_chars": 260,
+          "sample": "Section C gives"
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 41,
+          "max_node_chars": 41,
+          "sample": "CL-08 - Per-basis fee-line data-quality "
+        }
+      ]
+    },
+    {
+      "index": 17,
+      "runs": [
+        {
+          "pt": 8.3,
+          "chars": 5,
+          "max_node_chars": 1,
+          "sample": "c"
+        },
+        {
+          "pt": 8.5,
+          "chars": 287,
+          "max_node_chars": 129,
+          "sample": "reported_actual_state = present_valid"
+        },
+        {
+          "pt": 10,
+          "chars": 671,
+          "max_node_chars": 226,
+          "sample": "Three per-basis state-to-value CHECKs re"
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "runs": [
+        {
+          "pt": 8.3,
+          "chars": 1,
+          "max_node_chars": 1,
+          "sample": "r"
+        },
+        {
+          "pt": 8.5,
+          "chars": 156,
+          "max_node_chars": 24,
+          "sample": "reconciliation_fee_lines"
+        },
+        {
+          "pt": 10,
+          "chars": 1359,
+          "max_node_chars": 375,
+          "sample": "Section C keys"
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 44,
+          "max_node_chars": 44,
+          "sample": "CL-09 - Multiple components of the same "
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "runs": [
+        {
+          "pt": 8.3,
+          "chars": 1,
+          "max_node_chars": 1,
+          "sample": "r"
+        },
+        {
+          "pt": 8.5,
+          "chars": 183,
+          "max_node_chars": 129,
+          "sample": "merchant_id"
+        },
+        {
+          "pt": 10,
+          "chars": 718,
+          "max_node_chars": 184,
+          "sample": "UNIQUE ("
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 20,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 137,
+          "max_node_chars": 22,
+          "sample": "settlement_allocations"
+        },
+        {
+          "pt": 10,
+          "chars": 1926,
+          "max_node_chars": 393,
+          "sample": "v0.1's"
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 46,
+          "max_node_chars": 46,
+          "sample": "CL-10 - Settlement allocation and revers"
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 170,
+          "max_node_chars": 129,
+          "sample": "kind"
+        },
+        {
+          "pt": 10,
+          "chars": 1295,
+          "max_node_chars": 470,
+          "sample": "CHECKs: amount > 0;"
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 22,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 53,
+          "max_node_chars": 33,
+          "sample": "set_config('app.merchant_id', ...)"
+        },
+        {
+          "pt": 10,
+          "chars": 2257,
+          "max_node_chars": 280,
+          "sample": "Section E's isolation model rests on"
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 49,
+          "max_node_chars": 49,
+          "sample": "CL-11 - Trust boundary of application-se"
+        }
+      ]
+    },
+    {
+      "index": 23,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 129,
+          "max_node_chars": 129,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        },
+        {
+          "pt": 10,
+          "chars": 1120,
+          "max_node_chars": 423,
+          "sample": "Single context-setting point: tenant con"
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 24,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 58,
+          "max_node_chars": 22,
+          "sample": "closed_at"
+        },
+        {
+          "pt": 10,
+          "chars": 2135,
+          "max_node_chars": 575,
+          "sample": "v0.1 Section G flags retention periods a"
+        },
+        {
+          "pt": 10.5,
+          "chars": 63,
+          "max_node_chars": 25,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 14.5,
+          "chars": 52,
+          "max_node_chars": 52,
+          "sample": "CL-12 - Workspace deletion and financial"
+        }
+      ]
+    },
+    {
+      "index": 25,
+      "runs": [
+        {
+          "pt": 8.3,
+          "chars": 6,
+          "max_node_chars": 5,
+          "sample": "total"
+        },
+        {
+          "pt": 8.5,
+          "chars": 147,
+          "max_node_chars": 129,
+          "sample": "merchants"
+        },
+        {
+          "pt": 10,
+          "chars": 1468,
+          "max_node_chars": 332,
+          "sample": "All tenant FKs from financial tables to"
+        },
+        {
+          "pt": 10.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 26,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 129,
+          "max_node_chars": 129,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        },
+        {
+          "pt": 9,
+          "chars": 696,
+          "max_node_chars": 90,
+          "sample": "Test"
+        },
+        {
+          "pt": 10,
+          "chars": 832,
+          "max_node_chars": 178,
+          "sample": "Section I of v0.1 (T-01 to T-20) stands "
+        },
+        {
+          "pt": 12,
+          "chars": 36,
+          "max_node_chars": 36,
+          "sample": "Appendix 1 delta - invariant traceabilit"
+        },
+        {
+          "pt": 14.5,
+          "chars": 23,
+          "max_node_chars": 23,
+          "sample": "Consolidated test changes"
+        }
+      ]
+    },
+    {
+      "index": 27,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 151,
+          "max_node_chars": 25,
+          "sample": "open"
+        },
+        {
+          "pt": 9,
+          "chars": 1126,
+          "max_node_chars": 124,
+          "sample": "Item"
+        },
+        {
+          "pt": 14.5,
+          "chars": 35,
+          "max_node_chars": 35,
+          "sample": "Change log - v0.1 to v0.2 (this amendmen"
+        }
+      ]
+    },
+    {
+      "index": 28,
+      "runs": [
+        {
+          "pt": 8.5,
+          "chars": 129,
+          "max_node_chars": 129,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        },
+        {
+          "pt": 10,
+          "chars": 1367,
+          "max_node_chars": 433,
+          "sample": "B-1."
+        },
+        {
+          "pt": 12,
+          "chars": 73,
+          "max_node_chars": 46,
+          "sample": "Blocking any M1 implementation (unchange"
+        },
+        {
+          "pt": 14.5,
+          "chars": 17,
+          "max_node_chars": 17,
+          "sample": "Remaining blockers"
+        }
+      ]
+    }
+  ],
+  "geometry": {
+    "failures": [],
+    "advisories": []
+  },
+  "gate_failures": [],
+  "advisories": []
+}

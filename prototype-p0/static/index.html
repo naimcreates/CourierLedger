@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CourierLedger P0 — Disposable Prototype</title>
+<style>
+  :root { --ink:#1a2433; --mut:#5b6b7f; --line:#dfe6ee; --bg:#f6f8fa; --card:#fff;
+          --ok:#137a3a; --bad:#b3261e; --warn:#8a6100; --acc:#0b5fff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+         color:var(--ink); background:var(--bg); }
+  header { background:#10233f; color:#fff; padding:18px 24px; }
+  header h1 { margin:0; font-size:22px; }
+  header p { margin:4px 0 0; color:#bcd0e8; font-size:13px; }
+  main { max-width:1180px; margin:0 auto; padding:20px 24px 60px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
+          padding:16px 18px; margin-bottom:18px; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  .metrics { display:flex; flex-wrap:wrap; gap:12px; }
+  .metric { flex:1 1 140px; border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+  .metric b { font-size:22px; display:block; }
+  .metric span { color:var(--mut); font-size:12px; }
+  .sums { font-size:13px; line-height:1.7; }
+  .sums code { background:#eef2f7; padding:1px 5px; border-radius:4px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--mut); font-weight:600; }
+  tr.clickable { cursor:pointer; }
+  tr.clickable:hover { background:#f0f5fb; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:12px; font-weight:600; }
+  .matched { background:#e2f3e8; color:var(--ok); }
+  .mismatch { background:#fdecea; color:var(--bad); }
+  .needs_review { background:#fff4d6; color:var(--warn); }
+  .unknown { background:#eef2f7; color:var(--mut); }
+  .matched_with_tolerance { background:#e2f3e8; color:var(--ok); }
+  .open { background:#e3ecfd; color:var(--acc); }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .neg { color:var(--bad); } .pos { color:var(--ok); }
+  .warn { background:#fff8e1; border:1px solid #f0d98c; border-radius:8px; padding:10px 12px; margin:6px 0; font-size:13px; }
+  .finding { border-left:3px solid var(--acc); padding:6px 10px; margin:6px 0; background:#f7fafd; font-size:13px; }
+  .finding.dq { border-color:var(--warn); background:#fffdf3; }
+  .finding.fin { border-color:var(--bad); }
+  button { background:var(--acc); color:#fff; border:0; border-radius:8px; padding:9px 14px; font-size:14px; cursor:pointer; }
+  button.secondary { background:#fff; color:var(--acc); border:1px solid var(--acc); }
+  input[type=file] { margin:8px 0; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .grid dl { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px; margin:0; }
+  .grid dt { color:var(--mut); } .grid dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+  .muted { color:var(--mut); font-size:12px; }
+  select, input[type=text] { padding:6px; border:1px solid var(--line); border-radius:6px; font-size:13px; }
+  @media (max-width:800px){ .grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<header>
+  <h1>CourierLedger — P0 Disposable Prototype</h1>
+  <p>Synthetic COD reconciliation only &middot; Fictional fixtures (not real courier contracts) &middot;
+     All money in integer poisha &middot; Spec V2 / 2.1 / 2.2 / 2.2.1</p>
+</header>
+<main>
+  <div class="card">
+    <h2>Overview <span class="muted">— metrics for the current run</span></h2>
+    <div class="metrics" id="metrics"></div>
+    <p class="sums" id="sums"></p>
+    <p class="muted">Variances are shown separately and are <b>never summed into one loss</b>.
+       C = collection, V<sub>R</sub> = fee/tax, S = statement inconsistency,
+       V<sub>cond</sub> = conditional payout, V<sub>total</sub> = total / scenario shortfall.</p>
+  </div>
+
+  <div class="card">
+    <h2>Load data</h2>
+    <button id="demoBtn">Load synthetic demo dataset</button>
+    <span class="muted" id="runInfo"></span>
+    <hr>
+    <label><b>CSV upload</b> <span class="muted">— headers are mapped below; unmapped or missing columns become data-quality warnings, never silent defaults.</span></label><br>
+    <input type="file" id="csvFile" accept=".csv,text/csv">
+    <div id="mappingBox"></div>
+    <button id="uploadBtn" class="secondary" disabled>Reconcile uploaded CSV</button>
+    <div id="csvReport"></div>
+  </div>
+
+  <div class="card" id="dqCard" style="display:none">
+    <h2>Data-quality warnings <span class="muted">যাচাই প্রয়োজন — needs review</span></h2>
+    <div id="dqList"></div>
+  </div>
+
+  <div class="card">
+    <h2>Reconciliation results</h2>
+    <div style="overflow-x:auto">
+    <table id="resultsTable">
+      <thead><tr>
+        <th>Tracking</th><th>Fixture</th><th>Outcome</th>
+        <th class="num">E</th><th class="num">R</th>
+        <th class="num">P<sub>e</sub></th><th class="num">P<sub>cond</sub></th><th class="num">P<sub>r</sub></th>
+        <th class="num">C</th><th class="num">V<sub>R</sub></th><th class="num">S</th>
+        <th class="num">V<sub>cond</sub></th><th class="num">V<sub>total</sub></th>
+        <th>Contractual</th><th>Data quality</th><th>Overall</th>
+      </tr></thead>
+      <tbody id="resultsBody"><tr><td colspan="16" class="muted">Load the demo dataset or upload a CSV to see results.</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card" id="detailCard" style="display:none">
+    <h2>Shipment detail</h2>
+    <div id="detail"></div>
+  </div>
+
+  <div class="card">
+    <h2>Statuses — English with Bangla</h2>
+    <p style="font-size:13px;line-height:1.8">
+      <b>matched</b> — মিলেছে &middot; <b>mismatch</b> — অমিল &middot; <b>open</b> — খোলা (collection open, contractual payout matched) &middot;
+      <b>needs review</b> — যাচাই প্রয়োজন &middot; <b>under-collection</b> — কম সংগ্রহ &middot;
+      <b>over-collection</b> — বেশি সংগ্রহ &middot; <b>unknown</b> — অজানা &middot;
+      <b>scenario</b> — কল্পিত হিসাব (not a contractual amount) &middot;
+      <b>amount owed at batch level</b> — ব্যাচে ফেরতযোগ্য টাকা (a return fee does not mean payment happened).
+    </p>
+    <p class="muted">Fixture rules: Fixture Alpha — full_cod, 1.00%; Fixture Beta — cod_minus_delivery_fee, 1.00%;
+       Fixture Gamma — reported_collected, 1.00%. These are synthetic test fixtures, not real courier contracts.
+       No bank CSV, no live courier API, no real merchant data in this prototype.</p>
+  </div>
+</main>
+<script>
+const BN = {matched:"মিলেছে", mismatch:"অমিল", needs_review:"যাচাই প্রয়োজন",
+            open:"খোলা",
+            unknown:"অজানা", matched_with_tolerance:"সহনশীলতার মধ্যে মিলেছে",
+            complete:"সম্পূর্ণ", under_collection:"কম সংগ্রহ"};
+const CANON = ["merchant_order_id","tracking_id","courier_fixture","outcome",
+ "amount_to_collect_poisha","documented_partial_poisha","reported_collected_poisha",
+ "expected_delivery_fee_poisha","reported_delivery_fee_poisha",
+ "contractual_delivery_fee_poisha","contractual_delivery_fee_confirmed",
+ "contractual_delivery_fee_evidence",
+ "cod_fee_base","cod_fee_rate_bp","other_fees_poisha","return_fee_poisha",
+ "excluded_tax_poisha","reported_excluded_tax_poisha",
+ "reported_deductions_total_poisha","reported_cod_fee_poisha",
+ "reported_other_fee_poisha","reported_return_fee_poisha","reported_payout_poisha",
+ "vat_mode","vat_formula","vat_rate_bp","note"];
+let current = null, currentRunId = null;
+
+function fmt(v){ if(v===null||v===undefined) return "NULL";
+  const n = Number(v); return (n<0?"−":"") + Math.abs(n).toLocaleString("en-US"); }
+function pill(status){ return `<span class="pill ${status}">${status} · ${BN[status]||""}</span>`; }
+function numCell(v){ if(v===null||v===undefined) return '<td class="num muted">NULL</td>';
+  const c = v<0?"neg":(v>0?"pos":""); return `<td class="num ${c}">${fmt(v)}</td>`; }
+
+function render(data){
+  current = data.results; currentRunId = data.run_id;
+  document.getElementById("runInfo").textContent =
+    `Run ${data.run_id.slice(0,8)}… · ${data.count} shipments · ${data.created_at||""}`;
+  const counts = {};
+  data.results.forEach(r => counts[r.overall_status]=(counts[r.overall_status]||0)+1);
+  document.getElementById("metrics").innerHTML =
+    ["matched","mismatch","open","needs_review","matched_with_tolerance"].map(s =>
+      `<div class="metric"><b>${counts[s]||0}</b><span>${s} · ${BN[s]||""}</span></div>`).join("")
+    + `<div class="metric"><b>${data.count}</b><span>shipments</span></div>`;
+  const sum = k => data.results.reduce((a,r)=>a+(r[k]||0),0);
+  document.getElementById("sums").innerHTML =
+    `Totals shown separately (never added together): ` +
+    ["C","V_R","S","V_cond","V_total"].map(k=>`<code>${k} = ${fmt(sum(k))}p</code>`).join(" · ");
+  const dq = [];
+  data.results.forEach(r => r.findings.filter(f=>f.kind==="data_quality").forEach(f =>
+    dq.push(`<div class="warn"><b>${r.tracking_id||"(no tracking)"}</b> — ${f.code}: ${f.message}</div>`)));
+  document.getElementById("dqCard").style.display = dq.length ? "" : "none";
+  document.getElementById("dqList").innerHTML = dq.join("") || "";
+  if (data.csv_report){
+    const rep = data.csv_report;
+    document.getElementById("csvReport").innerHTML =
+      `<p class="muted">Headers: ${rep.headers.join(", ")}<br>` +
+      (rep.unmapped_headers.length?`Unmapped headers: ${rep.unmapped_headers.join(", ")}<br>`:"") +
+      (rep.missing_fields.length?`Missing canonical fields: ${rep.missing_fields.join(", ")}`:"") + `</p>`;
+  }
+  document.getElementById("resultsBody").innerHTML = data.results.map((r,i)=>`
+    <tr class="clickable" onclick="showDetail(${i})">
+      <td>${r.tracking_id||"(blank)"}</td><td>${r.courier_fixture}</td><td>${r.outcome||"—"}</td>
+      ${numCell(r.E)}${numCell(r.R)}${numCell(r.P_e)}${numCell(r.P_cond)}${numCell(r.P_r)}
+      ${numCell(r.C)}${numCell(r.V_R)}${numCell(r.S)}${numCell(r.V_cond)}
+      <td class="num">${r.V_total===null?"NULL":fmt(r.V_total)+(r.is_scenario?' <span class="muted">(scenario)</span>':"")}</td>
+      <td>${pill(r.contractual_payout_status)}</td>
+      <td>${pill(r.data_quality_status)}</td>
+      <td>${pill(r.overall_status)}</td>
+    </tr>`).join("");
+}
+
+function showDetail(i){
+  const r = current[i];
+  const rows = [["Expected collectible (E)",r.E],["Reported collected (R)",r.R],
+    ["Expected delivery fee (D_e)",r.D_e],["Reported delivery fee (D_r)",r.D_r],
+    ["Contractual delivery fee (D_c)",r.D_c],["COD fee, expected basis (F_e)",r.F_e],
+    ["COD fee, reported basis (F_R)",r.F_R],["Other expected fees (O)",r.O],
+    ["Excluded tax, expected (T_e)",r.T_e],["Excluded tax, reported basis (T_r)",r.T_r],
+    ["Expected deductions (X_e)",r.X_e],["Recomputed deductions (X_R)",r.X_R],
+    ["Reported deductions (X_r)",r.X_r],["Expected payout (P_e)",r.P_e],
+    ["Conditional payout (P_cond)",r.P_cond],["Reported payout (P_r)",r.P_r],
+    ["Collection variance (C)",r.C],["Fee-basis change (Δ)",r.delta],
+    ["Fee/tax variance (V_R)",r.V_R],["Statement residual (S)",r.S],
+    ["Conditional payout variance (V_cond)",r.V_cond],
+    ["Total / scenario variance (V_total)",r.V_total],
+    ["Expected outcome",r.expected_outcome_poisha],
+    ["Batch amount owed (returns)",r.batch_amount_owed_poisha]];
+  document.getElementById("detailCard").style.display = "";
+  document.getElementById("detail").innerHTML = `
+    <p><b>${r.tracking_id||"(blank)"}</b> · ${r.courier_fixture} · ${r.cod_fee_base} · rate ${r.cod_fee_rate_bp}bp
+    ${r.is_scenario?' · <span class="muted">F_e / P_e are scenario-only</span>':""}
+    ${r.cod_fee_base==="cod_minus_delivery_fee"?` · D_c confirmed: ${r.D_c_confirmed} · evidence: ${r.D_c_evidence||"none — D_c is not contractual without flag + evidence"}`:""}</p>
+    <p>${pill(r.contractual_payout_status)} ${pill(r.data_quality_status)} ${pill(r.overall_status)}</p>
+    ${r.vat_breakdown?`<p>Included-tax breakdown: net ${fmt(r.vat_breakdown.net)}p, tax ${fmt(r.vat_breakdown.tax)}p (breakdown only — never subtracted again).</p>`:""}
+    <div class="grid"><dl>${rows.map(([k,v])=>`<dt>${k}</dt><dd>${fmt(v)}</dd>`).join("")}</dl>
+    <div><h3 style="margin:0 0 6px;font-size:14px">Findings — each kept separately, never netted</h3>
+    ${r.findings.length?r.findings.map(f=>`<div class="finding ${f.kind==="data_quality"?"dq":"fin"}"><b>${f.code}</b> (${f.kind}) — ${f.amount_poisha===null?"NULL":fmt(f.amount_poisha)+"p"} — ${f.message}</div>`).join(""):"<p class='muted'>No findings — all amounts match.</p>"}
+    <h3 style="margin:10px 0 6px;font-size:14px">Fee lines</h3>
+    ${r.fee_lines.length?r.fee_lines.map(l=>`<div class="finding">${l.fee_type}: ${l.state} — ${l.parsed_poisha===null?"NULL":fmt(l.parsed_poisha)+"p"}${l.raw_text?` (raw: ${l.raw_text})`:""}</div>`).join(""):"<p class='muted'>No fee lines supplied.</p>"}
+    </div></div>`;
+  document.getElementById("detailCard").scrollIntoView({behavior:"smooth"});
+}
+
+document.getElementById("demoBtn").onclick = async () => {
+  const resp = await fetch("/api/demo"); render(await resp.json());
+};
+
+let uploadedText = "";
+document.getElementById("csvFile").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; if(!f) return;
+  uploadedText = await f.text();
+  const headers = uploadedText.split(/\r?\n/)[0].split(",");
+  document.getElementById("mappingBox").innerHTML =
+    `<p class="muted">Map each uploaded header to a canonical field (blank = leave unmapped):</p>` +
+    headers.map(h=>{ const hh=h.trim();
+      return `<div><label style="font-size:13px">${hh} → </label><select data-header="${hh}">
+        <option value="">(unmapped)</option>` +
+        CANON.map(c=>`<option value="${c}" ${c===hh?"selected":""}>${c}</option>`).join("") +
+        `</select></div>`; }).join("");
+  document.getElementById("uploadBtn").disabled = false;
+});
+document.getElementById("uploadBtn").onclick = async () => {
+  const mapping = {};
+  document.querySelectorAll("#mappingBox select").forEach(s => { if(s.value) mapping[s.dataset.header]=s.value; });
+  const fd = new FormData();
+  fd.append("file", new Blob([uploadedText], {type:"text/csv"}), "upload.csv");
+  fd.append("mapping", JSON.stringify(mapping));
+  const resp = await fetch("/api/reconcile-csv", {method:"POST", body:fd});
+  if(!resp.ok){ alert("Upload failed: " + (await resp.text())); return; }
+  render(await resp.json());
+};
+</script>
+</body>
+</html>

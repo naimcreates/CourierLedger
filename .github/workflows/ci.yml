@@ -1,0 +1,325 @@
+# CourierLedger M1 — CI (Milestone 10).
+#
+# Runs on push / pull_request: backend pytest (SQLite suite + live
+# PostgreSQL suite), frontend build + Vitest, and Playwright e2e
+# against the real backend + real PostgreSQL.
+#
+# STATUS: written 2026-11-01, NOT yet run on GitHub. The first real
+# run will prove it — in particular the live-PostgreSQL step's
+# `su postgres` shim (see the "Backend live PostgreSQL tests" step).
+# Locally, only the YAML was validated and `npm run build` /
+# `npm test` were dry-run in m1/frontend. The backend suite was NOT
+# run locally for this task (other workers are running pytest
+# concurrently against the shared SQLite test file).
+#
+# Secrets: the only secret is CI_POSTGRES_PASSWORD (repo secret, any
+# throwaway value — it only protects an ephemeral CI database holding
+# synthetic data). If the secret is not set, the literal fallback
+# `ci-only-placeholder` is used; it is a placeholder, never a real
+# password, and must never be reused outside CI. No other secret is
+# needed: SECRET_KEY / SESSION_SECRET are generated fresh per run.
+#
+# Database provisioning mirrors m1/README.md §3 exactly: create the
+# owner role + runtime role, create courierledger_app and
+# courierledger_dev, `alembic upgrade head` as the owner role, then
+# rls.sql / triggers.sql as the owner, roles.sql as the postgres
+# superuser, then the runtime-role password (roles.sql deliberately
+# sets NO password — see its header), then seed_couriers.sql.
+# The postgres service superuser is `postgres` (the image default);
+# all provisioning psql runs over TCP (-h localhost), never via a
+# local cluster.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Throwaway CI-only database password. Prefer the repo secret
+  # CI_POSTGRES_PASSWORD when set; otherwise the literal placeholder.
+  CI_PG_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD || 'ci-only-placeholder' }}
+  POSTGRES_HOST: localhost
+  POSTGRES_PORT: "5432"
+  OWNER_ROLE: courierledger
+  RUNTIME_ROLE: courierledger_runtime
+
+jobs:
+  # ------------------------------------------------------------------
+  backend:
+    name: Backend pytest (SQLite + live PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ env.CI_PG_PASSWORD }}
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: m1/backend/requirements.txt
+
+      - name: Install backend dependencies (venv, as local dev does)
+        working-directory: m1/backend
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      # Provision courierledger_app + courierledger_dev exactly as
+      # m1/README.md §3 documents for local apt-installed PostgreSQL,
+      # except every psql runs over TCP as the service superuser
+      # (there is no local cluster or `su postgres` on the runner).
+      - name: Provision PostgreSQL (roles, DBs, Alembic, RLS/triggers/roles, seed)
+        working-directory: m1/backend
+        env:
+          PGPASSWORD: ${{ env.CI_PG_PASSWORD }}
+          OWNER_URL: postgresql+psycopg://courierledger:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_app
+          RUNTIME_URL: postgresql+psycopg://courierledger_runtime:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_app
+        run: |
+          set -euo pipefail
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE courierledger LOGIN PASSWORD '${CI_PG_PASSWORD}';"
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE courierledger_app OWNER courierledger;" \
+            -c "CREATE DATABASE courierledger_dev OWNER courierledger;"
+          # Alembic as the DB owner (MIGRATION_DATABASE_URL), both DBs.
+          MIGRATION_DATABASE_URL="${OWNER_URL}" \
+            .venv/bin/alembic upgrade head
+          MIGRATION_DATABASE_URL="postgresql+psycopg://courierledger:${CI_PG_PASSWORD}@localhost:5432/courierledger_dev" \
+            .venv/bin/alembic upgrade head
+          # RLS + triggers as the owner role, per database.
+          for db in courierledger_app courierledger_dev; do
+            PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger -d "$db" \
+              -v ON_ERROR_STOP=1 -f app/db/rls.sql
+            PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger -d "$db" \
+              -v ON_ERROR_STOP=1 -f app/db/triggers.sql
+          done
+          # roles.sql as the superuser (it creates roles), per database.
+          # NOTE: roles.sql deliberately sets NO password on
+          # courierledger_runtime, so set it here — without this step
+          # the runtime role cannot log in at all.
+          for db in courierledger_app courierledger_dev; do
+            psql -h localhost -U postgres -d "$db" \
+              -v ON_ERROR_STOP=1 -f app/db/roles.sql
+          done
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "ALTER ROLE courierledger_runtime WITH PASSWORD '${CI_PG_PASSWORD}';"
+          # Seed the 5 courier codes (idempotent; no rates/templates).
+          for db in courierledger_app courierledger_dev; do
+            PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger -d "$db" \
+              -v ON_ERROR_STOP=1 -f app/db/seed_couriers.sql
+          done
+
+      # Full suite without the live env: live-PostgreSQL modules skip
+      # (they need CL_LIVE_PG_PASSWORD) and the SQLite suite runs.
+      # This is the step that must stay green even if live PG breaks.
+      - name: Backend pytest (SQLite suite; live modules skip)
+        working-directory: m1/backend
+        run: .venv/bin/python -m pytest tests/ -q
+
+      # Live suite. backend/tests/live_pg.py provisions its own
+      # scratch DB (courierledger_live_test) and starts uvicorn, but
+      # it shells out to `su postgres -c "psql ..."` (written for a
+      # local apt install). On the runner there is no postgres OS
+      # user and no local cluster, so this step provides a shim:
+      #   * create a postgres OS user (su needs one; root can su
+      #     to it without a password),
+      #   * run pytest as root (sudo -E) so `su postgres` succeeds,
+      #   * export PGHOST/PGUSER/PGPASSWORD so those psql calls
+      #     connect over TCP to the service container instead of a
+      #     (nonexistent) local Unix socket.
+      # If this shim ever fails on GitHub, the cleaner fix is to
+      # teach live_pg.py a TCP-superuser path (env-gated), not to
+      # delete this step: the live suite is the only thing proving
+      # RLS, triggers, leases and the runtime role.
+      - name: Create postgres OS user (live-test `su postgres` shim)
+        run: |
+          if ! id -u postgres >/dev/null 2>&1; then
+            sudo useradd -m postgres
+          fi
+
+      - name: Backend pytest (live PostgreSQL, runtime role)
+        working-directory: m1/backend
+        env:
+          CL_LIVE_PG_PASSWORD: ${{ env.CI_PG_PASSWORD }}
+          CL_LIVE_PG_ROLE: courierledger_runtime
+          CL_LIVE_PG_HOST: 127.0.0.1
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: ${{ env.CI_PG_PASSWORD }}
+        run: sudo -E .venv/bin/python -m pytest tests/ -q
+
+  # ------------------------------------------------------------------
+  frontend:
+    name: Frontend build + Vitest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: m1/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: m1/frontend
+        run: npm ci
+
+      - name: Frontend build
+        working-directory: m1/frontend
+        run: npm run build
+
+      - name: Frontend Vitest
+        working-directory: m1/frontend
+        run: npm test
+
+  # ------------------------------------------------------------------
+  # Playwright e2e: full happy path register -> workspace -> import ->
+  # run -> settle against the real backend + real PostgreSQL.
+  # Needs its own DB service and provisioning because jobs do not
+  # share services. The backend .env is generated here (CI-only,
+  # gitignored) because frontend/playwright.config.ts reads
+  # m1/backend/.env and crashes if it is missing.
+  e2e:
+    name: Playwright e2e (real backend + PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ env.CI_PG_PASSWORD }}
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: m1/backend/requirements.txt
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: m1/frontend/package-lock.json
+
+      - name: Install backend dependencies (venv, as local dev does)
+        working-directory: m1/backend
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Install frontend dependencies
+        working-directory: m1/frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: m1/frontend
+        run: npx playwright install --with-deps chromium
+
+      # Provision courierledger_app only — the e2e backend connects
+      # to it as the runtime role (see the generated backend/.env).
+      - name: Provision PostgreSQL (courierledger_app)
+        working-directory: m1/backend
+        env:
+          PGPASSWORD: ${{ env.CI_PG_PASSWORD }}
+          OWNER_URL: postgresql+psycopg://courierledger:${{ env.CI_PG_PASSWORD }}@localhost:5432/courierledger_app
+        run: |
+          set -euo pipefail
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE courierledger LOGIN PASSWORD '${CI_PG_PASSWORD}';"
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE courierledger_app OWNER courierledger;"
+          MIGRATION_DATABASE_URL="${OWNER_URL}" \
+            .venv/bin/alembic upgrade head
+          PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger \
+            -d courierledger_app -v ON_ERROR_STOP=1 -f app/db/rls.sql
+          PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger \
+            -d courierledger_app -v ON_ERROR_STOP=1 -f app/db/triggers.sql
+          psql -h localhost -U postgres -d courierledger_app \
+            -v ON_ERROR_STOP=1 -f app/db/roles.sql
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "ALTER ROLE courierledger_runtime WITH PASSWORD '${CI_PG_PASSWORD}';"
+          PGPASSWORD="${CI_PG_PASSWORD}" psql -h localhost -U courierledger \
+            -d courierledger_app -v ON_ERROR_STOP=1 -f app/db/seed_couriers.sql
+
+      # playwright.config.ts reads m1/backend/.env and passes it to
+      # the backend webServer process. Generate it fresh per run:
+      # runtime-role DATABASE_URL, random secrets, dev environment.
+      # Never commit this file; it is gitignored.
+      - name: Write CI backend .env for Playwright
+        working-directory: m1/backend
+        env:
+          CI_DATABASE_URL: postgresql+psycopg://courierledger_runtime:${{ env.CI_PG_PASSWORD }}@127.0.0.1:5432/courierledger_app
+        run: |
+          set -euo pipefail
+          SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          SESSION_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          cat > .env <<EOF
+          # Generated by GitHub Actions for the Playwright e2e job only.
+          # CI-only values; never commit.
+          DATABASE_URL=${CI_DATABASE_URL}
+          SECRET_KEY=${SECRET_KEY}
+          SESSION_SECRET=${SESSION_SECRET}
+          FRONTEND_URL=http://127.0.0.1:5173
+          ENVIRONMENT=development
+          CREATE_TABLES_ON_STARTUP=false
+          SESSION_COOKIE_SECURE=false
+          EOF
+          chmod 600 .env
+
+      - name: Playwright e2e
+        working-directory: m1/frontend
+        run: npx playwright test
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            m1/frontend/playwright-report/
+            m1/frontend/test-results/
+          retention-days: 7

@@ -1,0 +1,74 @@
+# CourierLedger M1 — local development stack.
+#
+# PostgreSQL 16 + backend API. The database service starts first
+# (`docker compose up -d db`); the backend container depends on it
+# being healthy. Run the frontend from its own dev server
+# (`npm run dev`) -- the containerised frontend is not wired yet
+# (see the frontend service note below).
+#
+# No real secrets are in this file. Copy ../.env.example to .env at the
+# m1/ root (or export the variables) and replace every CHANGE_ME value.
+
+services:
+  db:
+    image: postgres:16
+    container_name: courierledger-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-courierledger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME}
+      POSTGRES_DB: ${POSTGRES_DB:-courierledger}
+    ports:
+      - "5432:5432"
+    volumes:
+      - courierledger_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-courierledger} -d ${POSTGRES_DB:-courierledger}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Backend API. The database must be PROVISIONED first (see
+  # m1/README.md): alembic as the owner role, then rls.sql /
+  # triggers.sql / roles.sql, and the runtime role provisioned with
+  # POSTGRES_PASSWORD (local dev only -- the same placeholder
+  # password is used for the owner and runtime roles). The app
+  # connects as the RUNTIME role (B-4), never as the owner role.
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: courierledger-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://courierledger_runtime:${POSTGRES_PASSWORD:-CHANGE_ME}@db:5432/${POSTGRES_DB:-courierledger}
+      SECRET_KEY: ${SECRET_KEY:-CHANGE_ME}
+      SESSION_SECRET: ${SESSION_SECRET:-CHANGE_ME}
+      FRONTEND_URL: ${FRONTEND_URL:-http://127.0.0.1:5173}
+      ENVIRONMENT: development
+      CREATE_TABLES_ON_STARTUP: "false"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  # Optional: frontend. backend/Dockerfile exists and the frontend
+  # Dockerfile (frontend/Dockerfile) builds the production bundle,
+  # but this service stays commented out: `vite preview` does not
+  # apply the dev-server /api proxy, so the containerised frontend
+  # cannot reach the backend yet. Use `npm run dev` (Vite dev
+  # server) for local work.
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: courierledger-frontend
+  #   ports:
+  #     - "5173:5173"
+  #   depends_on:
+  #     - backend
+
+volumes:
+  courierledger_pgdata:

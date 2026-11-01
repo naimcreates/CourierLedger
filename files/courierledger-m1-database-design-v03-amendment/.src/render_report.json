@@ -1,0 +1,935 @@
+{
+  "ok": true,
+  "pdf": "/home/hatch/workspace/goals/courierledger-planning-and-market-validation/files/courierledger-m1-database-design-v03-amendment/courierledger-m1-database-design-v03-amendment.pdf",
+  "pages": 0,
+  "pngs": [],
+  "fonts": {
+    "missing": [],
+    "unused": [],
+    "used": [
+      "Liberation Sans",
+      "Liberation Mono"
+    ],
+    "expected": [
+      "Liberation Sans:400",
+      "Liberation Sans:700"
+    ]
+  },
+  "overflow": [],
+  "text_floor": [
+    {
+      "index": 0,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 114,
+          "max_node_chars": 75,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        },
+        {
+          "pt": 8.3,
+          "chars": 1,
+          "max_node_chars": 1,
+          "sample": "c"
+        },
+        {
+          "pt": 9,
+          "chars": 24,
+          "max_node_chars": 24,
+          "sample": "Amendment v0.3  |  Design only"
+        },
+        {
+          "pt": 10,
+          "chars": 2078,
+          "max_node_chars": 331,
+          "sample": "A targeted follow-up amendment to the Da"
+        },
+        {
+          "pt": 12,
+          "chars": 32,
+          "max_node_chars": 32,
+          "sample": "Technical Correction Amendment v0.3"
+        },
+        {
+          "pt": 25,
+          "chars": 42,
+          "max_node_chars": 42,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 104,
+          "max_node_chars": 65,
+          "sample": "CourierLedger M1 Database Design - Amend"
+        },
+        {
+          "pt": 8.3,
+          "chars": 21,
+          "max_node_chars": 5,
+          "sample": "R"
+        },
+        {
+          "pt": 8.8,
+          "chars": 737,
+          "max_node_chars": 60,
+          "sample": "ID"
+        },
+        {
+          "pt": 10,
+          "chars": 1436,
+          "max_node_chars": 348,
+          "sample": "Five items. Four are resolved at design "
+        },
+        {
+          "pt": 11.5,
+          "chars": 38,
+          "max_node_chars": 38,
+          "sample": "What changes structurally - and what doe"
+        },
+        {
+          "pt": 15,
+          "chars": 18,
+          "max_node_chars": 18,
+          "sample": "Amendment at a glance"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 81,
+          "max_node_chars": 42,
+          "sample": "CL-13 - Match decision branching and con"
+        },
+        {
+          "pt": 8.8,
+          "chars": 472,
+          "max_node_chars": 166,
+          "sample": "Term"
+        },
+        {
+          "pt": 10,
+          "chars": 2120,
+          "max_node_chars": 372,
+          "sample": "v0.2 CL-03 made match decisions immutabl"
+        },
+        {
+          "pt": 11.5,
+          "chars": 50,
+          "max_node_chars": 33,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 69,
+          "max_node_chars": 69,
+          "sample": "CL-13 - Match decision branching and con"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 81,
+          "max_node_chars": 42,
+          "sample": "CL-13 - Match decision branching and con"
+        },
+        {
+          "pt": 8.8,
+          "chars": 39,
+          "max_node_chars": 21,
+          "sample": "pg_advisory_xact_lock"
+        },
+        {
+          "pt": 10,
+          "chars": 3474,
+          "max_node_chars": 421,
+          "sample": "(a) Prevention in normal operation - ser"
+        },
+        {
+          "pt": 11.5,
+          "chars": 63,
+          "max_node_chars": 63,
+          "sample": "2. Exact proposed change (continued) - p"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 81,
+          "max_node_chars": 42,
+          "sample": "CL-13 - Match decision branching and con"
+        },
+        {
+          "pt": 10,
+          "chars": 3526,
+          "max_node_chars": 627,
+          "sample": "(d) Resolving a conflicted candidate."
+        },
+        {
+          "pt": 11.5,
+          "chars": 97,
+          "max_node_chars": 72,
+          "sample": "2. Exact proposed change (continued) - r"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 81,
+          "max_node_chars": 42,
+          "sample": "CL-13 - Match decision branching and con"
+        },
+        {
+          "pt": 8.8,
+          "chars": 191,
+          "max_node_chars": 78,
+          "sample": "UNIQUE (merchant_id, supersedes_decision"
+        },
+        {
+          "pt": 10,
+          "chars": 1751,
+          "max_node_chars": 330,
+          "sample": "At most one successor per decision (no b"
+        },
+        {
+          "pt": 11.5,
+          "chars": 42,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 81,
+          "max_node_chars": 42,
+          "sample": "CL-13 - Match decision branching and con"
+        },
+        {
+          "pt": 10,
+          "chars": 1910,
+          "max_node_chars": 905,
+          "sample": "T-26 (new) - Match decision chain integr"
+        },
+        {
+          "pt": 11.5,
+          "chars": 29,
+          "max_node_chars": 21,
+          "sample": "5. Updated test scenario"
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 64,
+          "max_node_chars": 39,
+          "sample": "CL-14 - Idempotency recovery"
+        },
+        {
+          "pt": 10,
+          "chars": 1889,
+          "max_node_chars": 383,
+          "sample": "v0.2 CL-04 established one authoritative"
+        },
+        {
+          "pt": 11.5,
+          "chars": 17,
+          "max_node_chars": 17,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 63,
+          "max_node_chars": 63,
+          "sample": "CL-14 - Idempotency recovery: abandoned "
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 64,
+          "max_node_chars": 39,
+          "sample": "CL-14 - Idempotency recovery"
+        },
+        {
+          "pt": 8.8,
+          "chars": 789,
+          "max_node_chars": 183,
+          "sample": "Column"
+        },
+        {
+          "pt": 10,
+          "chars": 777,
+          "max_node_chars": 185,
+          "sample": "Clarifies and extends v0.2 CL-04, item 2"
+        },
+        {
+          "pt": 11.5,
+          "chars": 50,
+          "max_node_chars": 50,
+          "sample": "2. Exact proposed change - lease, token "
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 64,
+          "max_node_chars": 39,
+          "sample": "CL-14 - Idempotency recovery"
+        },
+        {
+          "pt": 8.8,
+          "chars": 706,
+          "max_node_chars": 106,
+          "sample": "Window"
+        },
+        {
+          "pt": 10,
+          "chars": 2746,
+          "max_node_chars": 487,
+          "sample": "(a) Claim."
+        },
+        {
+          "pt": 11.5,
+          "chars": 95,
+          "max_node_chars": 57,
+          "sample": "2. Exact proposed change (continued) - c"
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 64,
+          "max_node_chars": 39,
+          "sample": "CL-14 - Idempotency recovery"
+        },
+        {
+          "pt": 10,
+          "chars": 1777,
+          "max_node_chars": 452,
+          "sample": "(e) Completed replay is unchanged, and t"
+        },
+        {
+          "pt": 11.5,
+          "chars": 62,
+          "max_node_chars": 62,
+          "sample": "2. Exact proposed change (continued) - r"
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 64,
+          "max_node_chars": 39,
+          "sample": "CL-14 - Idempotency recovery"
+        },
+        {
+          "pt": 10,
+          "chars": 1902,
+          "max_node_chars": 371,
+          "sample": "Section C, table"
+        },
+        {
+          "pt": 11.5,
+          "chars": 67,
+          "max_node_chars": 42,
+          "sample": "3. Affected section and table"
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 64,
+          "max_node_chars": 39,
+          "sample": "CL-14 - Idempotency recovery"
+        },
+        {
+          "pt": 10,
+          "chars": 1603,
+          "max_node_chars": 708,
+          "sample": "T-27 (new) - Idempotency recovery."
+        },
+        {
+          "pt": 11.5,
+          "chars": 29,
+          "max_node_chars": 21,
+          "sample": "5. Updated test scenario"
+        }
+      ]
+    },
+    {
+      "index": 13,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 85,
+          "max_node_chars": 46,
+          "sample": "CL-15 - Workspace anonymisation and tena"
+        },
+        {
+          "pt": 10,
+          "chars": 3206,
+          "max_node_chars": 346,
+          "sample": "v0.2 CL-12 specified a two-stage model -"
+        },
+        {
+          "pt": 11.5,
+          "chars": 65,
+          "max_node_chars": 48,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 67,
+          "max_node_chars": 67,
+          "sample": "CL-15 - Workspace anonymisation and tena"
+        }
+      ]
+    },
+    {
+      "index": 14,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 85,
+          "max_node_chars": 46,
+          "sample": "CL-15 - Workspace anonymisation and tena"
+        },
+        {
+          "pt": 10,
+          "chars": 3369,
+          "max_node_chars": 366,
+          "sample": "Why not a shared anonymised retention wo"
+        },
+        {
+          "pt": 11.5,
+          "chars": 138,
+          "max_node_chars": 69,
+          "sample": "2. Exact proposed change (continued) - o"
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 85,
+          "max_node_chars": 46,
+          "sample": "CL-15 - Workspace anonymisation and tena"
+        },
+        {
+          "pt": 10,
+          "chars": 2382,
+          "max_node_chars": 764,
+          "sample": "Historical export has two windows, and t"
+        },
+        {
+          "pt": 11.5,
+          "chars": 25,
+          "max_node_chars": 25,
+          "sample": "3. Affected section and table"
+        }
+      ]
+    },
+    {
+      "index": 16,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 85,
+          "max_node_chars": 46,
+          "sample": "CL-15 - Workspace anonymisation and tena"
+        },
+        {
+          "pt": 8.3,
+          "chars": 6,
+          "max_node_chars": 5,
+          "sample": "total"
+        },
+        {
+          "pt": 10,
+          "chars": 3260,
+          "max_node_chars": 635,
+          "sample": "Referential integrity needs no new mecha"
+        },
+        {
+          "pt": 11.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 17,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 73,
+          "max_node_chars": 39,
+          "sample": "CL-16 - Immutable bank variance history"
+        },
+        {
+          "pt": 10,
+          "chars": 1934,
+          "max_node_chars": 437,
+          "sample": "In v0.1, bank variance lives in exactly "
+        },
+        {
+          "pt": 11.5,
+          "chars": 17,
+          "max_node_chars": 17,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 64,
+          "max_node_chars": 64,
+          "sample": "CL-16 - Immutable bank variance history:"
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 73,
+          "max_node_chars": 39,
+          "sample": "CL-16 - Immutable bank variance history"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1195,
+          "max_node_chars": 198,
+          "sample": "Column"
+        },
+        {
+          "pt": 10,
+          "chars": 536,
+          "max_node_chars": 111,
+          "sample": "Supersedes the bank variance parts of v0"
+        },
+        {
+          "pt": 11.5,
+          "chars": 54,
+          "max_node_chars": 32,
+          "sample": "2. Exact proposed change -"
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 73,
+          "max_node_chars": 39,
+          "sample": "CL-16 - Immutable bank variance history"
+        },
+        {
+          "pt": 8.8,
+          "chars": 487,
+          "max_node_chars": 149,
+          "sample": "Column"
+        },
+        {
+          "pt": 10,
+          "chars": 2474,
+          "max_node_chars": 354,
+          "sample": "settlement_variance_calculation_inputs"
+        },
+        {
+          "pt": 11.5,
+          "chars": 90,
+          "max_node_chars": 65,
+          "sample": "2. Exact proposed change (continued) - i"
+        }
+      ]
+    },
+    {
+      "index": 20,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 73,
+          "max_node_chars": 39,
+          "sample": "CL-16 - Immutable bank variance history"
+        },
+        {
+          "pt": 10,
+          "chars": 3630,
+          "max_node_chars": 946,
+          "sample": "Append-only, like every other financial "
+        },
+        {
+          "pt": 11.5,
+          "chars": 71,
+          "max_node_chars": 42,
+          "sample": "4. Constraint or transaction-level enfor"
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 89,
+          "max_node_chars": 50,
+          "sample": "CL-17 - PostgreSQL cross-table constrain"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1325,
+          "max_node_chars": 300,
+          "sample": "Mechanism"
+        },
+        {
+          "pt": 10,
+          "chars": 1606,
+          "max_node_chars": 667,
+          "sample": "v0.2 CL-01, item 4, specified the enforc"
+        },
+        {
+          "pt": 11.5,
+          "chars": 74,
+          "max_node_chars": 57,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 63,
+          "max_node_chars": 63,
+          "sample": "CL-17 - Clarification: cross-table consi"
+        }
+      ]
+    },
+    {
+      "index": 22,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 89,
+          "max_node_chars": 50,
+          "sample": "CL-17 - PostgreSQL cross-table constrain"
+        },
+        {
+          "pt": 10,
+          "chars": 1544,
+          "max_node_chars": 340,
+          "sample": "CL-01 enforcement, restated correctly."
+        }
+      ]
+    },
+    {
+      "index": 23,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 89,
+          "max_node_chars": 50,
+          "sample": "CL-17 - PostgreSQL cross-table constrain"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1218,
+          "max_node_chars": 83,
+          "sample": "Invariant"
+        },
+        {
+          "pt": 10,
+          "chars": 665,
+          "max_node_chars": 442,
+          "sample": "Every cross-row or cross-table invariant"
+        },
+        {
+          "pt": 11.5,
+          "chars": 48,
+          "max_node_chars": 48,
+          "sample": "2. Exact proposed change (continued) - t"
+        }
+      ]
+    },
+    {
+      "index": 24,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 89,
+          "max_node_chars": 50,
+          "sample": "CL-17 - PostgreSQL cross-table constrain"
+        },
+        {
+          "pt": 8.3,
+          "chars": 10,
+          "max_node_chars": 5,
+          "sample": "total"
+        },
+        {
+          "pt": 10,
+          "chars": 2854,
+          "max_node_chars": 468,
+          "sample": "v0.2 CL-01 item 4 (the phrase \"consisten"
+        },
+        {
+          "pt": 11.5,
+          "chars": 96,
+          "max_node_chars": 42,
+          "sample": "3. Affected section and table"
+        }
+      ]
+    },
+    {
+      "index": 25,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 79,
+          "max_node_chars": 40,
+          "sample": "Consolidated test changes and Appendix 1"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1120,
+          "max_node_chars": 171,
+          "sample": "Test"
+        },
+        {
+          "pt": 10,
+          "chars": 1285,
+          "max_node_chars": 206,
+          "sample": "Section I of v0.1, as amended by v0.2, s"
+        },
+        {
+          "pt": 11.5,
+          "chars": 36,
+          "max_node_chars": 36,
+          "sample": "Appendix 1 delta - invariant traceabilit"
+        },
+        {
+          "pt": 15,
+          "chars": 23,
+          "max_node_chars": 23,
+          "sample": "Consolidated test changes"
+        }
+      ]
+    },
+    {
+      "index": 26,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 59,
+          "max_node_chars": 39,
+          "sample": "Change log - v0.2 to v0.3"
+        },
+        {
+          "pt": 8.8,
+          "chars": 2234,
+          "max_node_chars": 396,
+          "sample": "Item"
+        },
+        {
+          "pt": 15,
+          "chars": 35,
+          "max_node_chars": 35,
+          "sample": "Change log - v0.2 to v0.3 (this amendmen"
+        }
+      ]
+    },
+    {
+      "index": 27,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 104,
+          "max_node_chars": 65,
+          "sample": "CourierLedger M1 Database Design - Amend"
+        },
+        {
+          "pt": 8.8,
+          "chars": 180,
+          "max_node_chars": 180,
+          "sample": "End of amendment v0.3. This amendment su"
+        },
+        {
+          "pt": 10,
+          "chars": 2713,
+          "max_node_chars": 746,
+          "sample": "B-1."
+        },
+        {
+          "pt": 11.5,
+          "chars": 80,
+          "max_node_chars": 53,
+          "sample": "Blocking any M1 implementation (unchange"
+        },
+        {
+          "pt": 15,
+          "chars": 17,
+          "max_node_chars": 17,
+          "sample": "Remaining blockers"
+        }
+      ]
+    }
+  ],
+  "image_resolution": [
+    {
+      "index": 0,
+      "images": []
+    },
+    {
+      "index": 1,
+      "images": []
+    },
+    {
+      "index": 2,
+      "images": []
+    },
+    {
+      "index": 3,
+      "images": []
+    },
+    {
+      "index": 4,
+      "images": []
+    },
+    {
+      "index": 5,
+      "images": []
+    },
+    {
+      "index": 6,
+      "images": []
+    },
+    {
+      "index": 7,
+      "images": []
+    },
+    {
+      "index": 8,
+      "images": []
+    },
+    {
+      "index": 9,
+      "images": []
+    },
+    {
+      "index": 10,
+      "images": []
+    },
+    {
+      "index": 11,
+      "images": []
+    },
+    {
+      "index": 12,
+      "images": []
+    },
+    {
+      "index": 13,
+      "images": []
+    },
+    {
+      "index": 14,
+      "images": []
+    },
+    {
+      "index": 15,
+      "images": []
+    },
+    {
+      "index": 16,
+      "images": []
+    },
+    {
+      "index": 17,
+      "images": []
+    },
+    {
+      "index": 18,
+      "images": []
+    },
+    {
+      "index": 19,
+      "images": []
+    },
+    {
+      "index": 20,
+      "images": []
+    },
+    {
+      "index": 21,
+      "images": []
+    },
+    {
+      "index": 22,
+      "images": []
+    },
+    {
+      "index": 23,
+      "images": []
+    },
+    {
+      "index": 24,
+      "images": []
+    },
+    {
+      "index": 25,
+      "images": []
+    },
+    {
+      "index": 26,
+      "images": []
+    },
+    {
+      "index": 27,
+      "images": []
+    }
+  ],
+  "geometry": {
+    "failures": [],
+    "advisories": []
+  },
+  "gate_failures": [],
+  "advisories": []
+}

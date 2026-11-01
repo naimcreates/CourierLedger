@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CourierLedger M1 Database Design Specification</title>
+<style>
+@page { size: A4; margin: 17mm 16mm 18mm 16mm; @bottom-center { content: "CourierLedger M1 Database Design Specification  -  page " counter(page) " of " counter(pages); font-family: 'Liberation Sans','Noto Sans',sans-serif; font-size: 8pt; color: #64748b; } @top-right { content: "DESIGN ONLY - NOT FOR IMPLEMENTATION WITHOUT APPROVAL"; font-family: 'Liberation Sans','Noto Sans',sans-serif; font-size: 7.5pt; color: #94a3b8; } }
+* { box-sizing: border-box; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+body { margin:0; font-family:'Liberation Sans','Noto Sans',sans-serif; font-size:10pt; line-height:1.5; color:#1e293b; }
+h1 { font-size:26pt; line-height:1.15; color:#0f2a43; margin:0 0 6mm 0; }
+h2 { font-size:16pt; color:#0f2a43; border-bottom:2.5px solid #0e7490; padding-bottom:2mm; margin:9mm 0 4mm 0; page-break-after:avoid; }
+h3 { font-size:12pt; color:#164e63; margin:6mm 0 2.5mm 0; page-break-after:avoid; }
+h4 { font-size:10.5pt; color:#334155; margin:4mm 0 2mm 0; page-break-after:avoid; }
+p { margin:0 0 3mm 0; } ul,ol { margin:0 0 3mm 0; padding-left:6mm; } li { margin-bottom:1.2mm; }
+table { width:100%; border-collapse:collapse; font-size:8.2pt; line-height:1.35; margin:2mm 0 5mm 0; }
+th { background:#e8eef2; color:#0f2a43; text-align:left; padding:1.6mm 1.8mm; border:0.5px solid #b6c2cc; vertical-align:top; }
+td { padding:1.5mm 1.8mm; border:0.5px solid #cbd5e1; vertical-align:top; }
+tr { page-break-inside:avoid; }
+code, pre { font-family:'Liberation Mono','Noto Sans Mono',monospace; font-size:8pt; }
+pre { background:#f1f5f9; border:0.5px solid #cbd5e1; padding:3mm; white-space:pre-wrap; word-wrap:break-word; line-height:1.4; page-break-inside:auto; }
+.tblspec pre { page-break-inside:auto; }
+.callout { background:#fff7ed; border-left:3.5px solid #c2410c; padding:3mm 4mm; margin:3mm 0 4mm 0; page-break-inside:avoid; }
+.keybox { background:#ecfeff; border-left:3.5px solid #0e7490; padding:3mm 4mm; margin:3mm 0 4mm 0; page-break-inside:avoid; }
+.goodbox { background:#f0fdf4; border-left:3.5px solid #15803d; padding:3mm 4mm; margin:3mm 0 4mm 0; page-break-inside:avoid; }
+.small { font-size:8.5pt; color:#475569; } .tag { font-weight:700; color:#0e7490; }
+.cover { padding-top:22mm; } .subtitle { font-size:13pt; color:#475569; line-height:1.45; }
+.meta { margin-top:10mm; font-size:10pt; } .meta td { border:none; border-bottom:0.5px solid #e2e8f0; padding:2mm 2mm 2mm 0; font-size:10pt; }
+.kv { font-weight:700; color:#0f2a43; width:38mm; }
+.status { display:inline-block; background:#7c2d12; color:#fff; padding:1.5mm 4mm; font-weight:700; font-size:9pt; letter-spacing:0.4px; }
+.nb { page-break-inside:avoid; } .toc td { border:none; border-bottom:0.5px dotted #cbd5e1; font-size:10pt; padding:1.8mm 1mm; }
+</style></head><body>
+
+<div class="cover">
+<p><span class="status">DESIGN SPECIFICATION - IMPLEMENTATION GATED</span></p>
+<h1>CourierLedger M1<br>Database Design Specification</h1>
+<p class="subtitle">PostgreSQL database architecture for a Bangladesh-first, multi-tenant COD reconciliation service for small and medium online sellers. CSV-first for Steadfast, Pathao, Paperfly, RedX and eCourier.</p>
+<table class="meta">
+<tr><td class="kv">Product</td><td>CourierLedger</td></tr>
+<tr><td class="kv">Document status</td><td>Review draft for senior backend and database review. Not an implementation authorisation.</td></tr>
+<tr><td class="kv">Financial authority</td><td>Specification V2, V2.1, V2.2 and V2.2.1 amendments, plus the P0 final logic consistency and safety patch. Where this document and V2.2.1 differ on a formula, V2.2.1 prevails.</td></tr>
+<tr><td class="kv">Stack</td><td>PostgreSQL, Python + FastAPI, SQLAlchemy 2.x, Alembic, modular monolith, React + TypeScript + Vite, Docker application with managed PostgreSQL.</td></tr>
+<tr><td class="kv">Tenancy model</td><td>Shared database, shared schema, PostgreSQL Row-Level Security (RLS) with FORCE, composite tenant foreign keys and a non-owner runtime role.</td></tr>
+<tr><td class="kv">Gate</td><td>No production implementation, migration or deployment is authorised by this document. M1 remains gated behind market validation (Day 7 and Day 14 gates) and explicit production-readiness approval.</td></tr>
+</table>
+<div class="callout"><strong>Read this first.</strong> This specification designs the database only. It contains no production application code and no executable migration. Illustrative SQL in Section E must be adapted, reviewed and tested before any production use. No courier rate, fee base or statement format is asserted here: every courier-specific rule must come from merchant-confirmed evidence recorded in <code>courier_rule_evidence</code>.</div>
+<h3>What this document decides, and what it does not</h3>
+<p>It settles the table structure, tenant isolation model, financial storage rules, snapshot and immutability design, indexing approach, lifecycle defaults and test scenarios needed for a reviewer to approve or reject the M1 database before any code is written. It does not settle legal retention periods, authentication provider choice, file-storage provider choice, or any individual merchant's courier contract. Those are listed as open decisions in Section J, each with a recommended default and a note on whether it blocks implementation.</p>
+<h3>Contents</h3>
+<table class="toc">
+<tr><td>How to read this document - labels, conventions and notation</td></tr>
+<tr><td>A. Architecture Review</td></tr>
+<tr><td>B. Detailed Entity Relationship Diagram (Mermaid)</td></tr>
+<tr><td>C. Table-by-Table Specification</td></tr>
+<tr><td>D. Financial Data Integrity</td></tr>
+<tr><td>E. PostgreSQL RLS Design</td></tr>
+<tr><td>F. Indexing and Performance</td></tr>
+<tr><td>G. Data Lifecycle and Retention</td></tr>
+<tr><td>H. SQLAlchemy 2.x and Alembic Design</td></tr>
+<tr><td>I. Database Testing Strategy</td></tr>
+<tr><td>J. Open Decisions</td></tr>
+<tr><td>Appendices - invariant traceability, glossary, review checklist</td></tr>
+</table>
+</div>
+
+<h2>How to read this document</h2>
+<h3>Labels used throughout</h3>
+<table>
+<tr><th style="width:28mm">Label</th><th>Meaning</th></tr>
+<tr><td><span class="tag">CONFIRMED</span></td><td>Stated in the approved baseline, V2.2.1 or the P0 patch, or in the task brief for this specification. Not open to silent change in implementation.</td></tr>
+<tr><td><span class="tag">RECOMMENDED</span></td><td>A design recommendation in this document. A reviewer may reject it, but the rejection and its replacement must be recorded before implementation.</td></tr>
+<tr><td><span class="tag">OPEN</span></td><td>Unresolved. Listed again in Section J with options and a recommended default.</td></tr>
+<tr><td><span class="tag">ADAPT</span></td><td>Illustrative SQL or configuration that must be adapted and tested before production use. Never copy it verbatim into a live system.</td></tr>
+</table>
+<h3>Conventions</h3>
+<ul>
+<li><strong>Money:</strong> every amount column is <code>BIGINT</code> integer poisha (100 poisha = 1 taka). The suffix <code>_poisha</code> is mandatory in column names. No <code>FLOAT</code>, <code>REAL</code>, <code>DOUBLE PRECISION</code> or <code>NUMERIC</code> money column is permitted in M1; rates and percentages are not money and use the types stated per table.</li>
+<li><strong>Identifiers:</strong> primary keys are <code>UUID</code> generated by the application (or <code>gen_random_uuid()</code> where stated). Natural identifiers such as tracking IDs are never primary keys.</li>
+<li><strong>Time:</strong> all timestamps are <code>TIMESTAMPTZ</code>, stored in UTC, displayed in Asia/Dhaka by the application.</li>
+<li><strong>NULL:</strong> NULL means unknown, missing, not applicable as defined per column, or not yet calculable. NULL never means zero. Verified zero is the integer <code>0</code> plus, where a source value is involved, a data-quality state of <code>explicit_zero</code>.</li>
+<li><strong>Tenant:</strong> the tenant is the merchant workspace. The tenant column is <code>merchant_id</code> on every tenant-owned table, including tables reached only through a parent.</li>
+<li><strong>Immutability classes:</strong> <em>Append-only</em> (no UPDATE, no DELETE for the runtime role), <em>Versioned</em> (changes create a new row; the old row is closed, never edited in place except for its validity end), and <em>Mutable</em> (ordinary updates, audited).</li>
+</ul>
+
+<h2>A. Architecture Review</h2>
+<h3>A.1 Verdict on the draft</h3>
+<p>The proposed module list is a sound starting point. Its module boundaries match the domain - identity, courier configuration, orders, import, reconciliation and settlement are genuinely different lifecycles - and it already separates raw import data, reconciliation output and bank settlement, which is the separation the financial specification depends on. It should not be adopted unchanged. Five entities are missing, two entities need restructuring, and the draft as written does not by itself deliver tenant isolation, statement-line traceability or per-fee-line rounding evidence.</p>
+<div class="keybox"><strong>Summary of changes to the draft.</strong> Add <code>statement_lines</code>, <code>reconciliation_fee_lines</code>, <code>shipment_match_candidates</code>, <code>file_objects</code> and <code>idempotency_keys</code>. Restructure <code>column_mappings</code> so a mapping belongs to a statement template and each import stores an immutable snapshot of the mapping actually used. Keep <code>import_errors</code>, but define it as a queryable projection of row validation, not a second source of truth. Keep <code>workspace_settings</code> as a strict one-to-one table rather than a JSON column on <code>merchants</code>, because tolerance is a typed financial control. No draft entity is deleted.</div>
+<h3>A.2 What the draft gets right</h3>
+<ul>
+<li>Rule versions and rule evidence are separate tables. That is correct and essential: a version states what was calculated, evidence states why anyone is entitled to believe it.</li>
+<li>Reconciliation is modelled as runs, results and findings rather than columns on shipments. That preserves run immutability and lets findings coexist without netting.</li>
+<li>Settlement separates batches, receipts and allocations. That three-way split is what makes partial bank receipts representable without inventing a variance.</li>
+<li>Import separates batches, rows and errors. Raw rows can therefore survive a failed or disputed reconciliation.</li>
+<li>Audit and settings are first-class, not an afterthought bolted onto user records.</li>
+</ul>
+
+<h3>A.3 Missing entities, and why each is needed</h3>
+<table>
+<tr><th style="width:36mm">Added entity</th><th>Why the draft cannot work without it</th></tr>
+<tr><td><code>statement_lines</code></td><td>The draft jumps from raw <code>import_rows</code> to reconciliation results. There is nowhere to store the normalised courier-reported values for one shipment - reported collected COD, reported fees, reported payout - with their per-field data-quality state. Without this table, reported values would have to be parsed again at reconciliation time (so a run could not snapshot its inputs) or stored on <code>shipments</code> (so a second statement would overwrite the first). <span class="tag">RECOMMENDED, blocking.</span></td></tr>
+<tr><td><code>reconciliation_fee_lines</code></td><td>Rounding is per fee line, and the specification requires expected-basis and reported-basis fees to be shown separately. A single totals row cannot prove which line rounded, which line was NULL, or why <code>X_e</code>, <code>X_r</code> and <code>X_R</code> differ. One row per fee component per result carries that evidence.</td></tr>
+<tr><td><code>shipment_match_candidates</code></td><td>Weak matching must be auditable and must never rely on amount alone. If only the final chosen match is stored, there is no record that a match was ambiguous, which candidates competed, or why a human confirmed one. This table stores every candidate, its match basis, its rank and its confirmation state.</td></tr>
+<tr><td><code>file_objects</code></td><td>An import batch needs a verifiable link to the uploaded file: content hash, size, storage key and upload state. Keeping only a filename on the batch makes duplicate-file detection and later re-verification impossible.</td></tr>
+<tr><td><code>idempotency_keys</code></td><td>CSV upload and run creation will be retried by browsers, networks and users. Without stored idempotency keys, a retry creates a second batch or a second run and the duplicate looks like new evidence.</td></tr>
+</table>
+<h3>A.4 Entities restructured, and entities questioned</h3>
+<table>
+<tr><th style="width:36mm">Entity</th><th>Finding</th></tr>
+<tr><td><code>column_mappings</code></td><td><strong>Restructure.</strong> A mapping is a property of a statement template version, not a free-standing object, and an import must not change when a template is later edited. So <code>column_mappings</code> holds one row per template field, and <code>import_batches.mapping_snapshot</code> stores the exact mapping used, as immutable JSONB. Editing a template creates a new template version row (see Section C) rather than mutating mappings in place.</td></tr>
+<tr><td><code>import_errors</code></td><td><strong>Keep, with a constraint on its role.</strong> Row-level validation outcomes live on <code>import_rows</code> and <code>statement_lines</code>. <code>import_errors</code> is a normalised, queryable record of every error and warning (batch, row, field, code, message) so support and UI queries do not scan JSONB. A database rule must keep the two consistent: an error row always references the row and field it describes.</td></tr>
+<tr><td><code>user_sessions</code></td><td><strong>Keep, narrowly.</strong> Store only a hash of the refresh credential, expiry, revocation and device label. Never store a raw token, password or one-time code. If the chosen identity provider issues and revokes sessions entirely, this table may shrink to a local revocation list - see OD-03 in Section J.</td></tr>
+<tr><td><code>workspace_settings</code></td><td><strong>Keep as a separate one-to-one table.</strong> Tolerance in poisha, default locale and statement completeness expectations are typed, validated financial controls. Burying them in a JSON column on <code>merchants</code> would remove CHECK constraints exactly where they matter most.</td></tr>
+<tr><td><code>merchants</code></td><td><strong>Rename in prose, keep the name in SQL.</strong> In product language this is the workspace or seller business. The table name <code>merchants</code> is retained to match the approved baseline and because <code>merchant_id</code> is the tenant key everywhere.</td></tr>
+</table>
+
+<h3>A.5 Normalisation and relationship problems in the draft</h3>
+<ul>
+<li><strong>Reported values do not belong on <code>shipments</code>.</strong> A shipment can appear on more than one statement (an original and a correction). Reported collection, fees and payout are properties of a statement line, not of the shipment. Storing them on the shipment is a repeating-group and overwrite problem.</li>
+<li><strong>Expected values do not belong on <code>orders</code> alone.</strong> Original order COD and expected collectible COD are different amounts under V2.1: delivered shipments carry the amount to collect, documented partial deliveries carry only the documented partial amount, confirmed returns and cancellations carry verified 0, and unknown or in-transit outcomes carry NULL. Both amounts are therefore stored, with the outcome and its evidence, on the shipment and order as specified in Section C.</li>
+<li><strong>Findings must not be columns on results.</strong> A result has a list of independent findings. Boolean columns such as <code>has_fee_issue</code> would invite netting and would lose amounts. Findings are rows.</li>
+<li><strong>Every tenant table needs its own <code>merchant_id</code>.</strong> Deriving tenancy only through a parent join (for example, a finding reaching its merchant through result, then run) makes RLS policies slow, fragile and easy to bypass with a hand-written query. Denormalising <code>merchant_id</code> onto every tenant row, protected by composite foreign keys, is deliberate and is not a normalisation violation: the composite keys guarantee the copies agree.</li>
+<li><strong>Template and rule versioning must be uniform.</strong> Both statement templates and rule versions are immutable once used. The same pattern - version number, validity window, content hash, superseding row - is used for both, so reviewers learn one pattern.</li>
+<li><strong>No polymorphic foreign keys.</strong> Columns such as <code>entity_type</code> plus <code>entity_id</code> cannot be enforced by the database. Where the draft implied them (audit logs, evidence, errors), Section C either uses a real foreign key, or accepts an unenforced reference only in <code>audit_logs</code> and says so explicitly, with a compensating rule.</li>
+</ul>
+<h3>A.6 Principal risks</h3>
+<table>
+<tr><th style="width:8mm">#</th><th style="width:42mm">Risk</th><th>Mitigation in this design</th></tr>
+<tr><td>R1</td><td>RLS silently not applied: table owner or superuser connection, a policy missing on one table, or a pooled connection carrying a previous tenant's context.</td><td>FORCE RLS on every tenant table, a non-owner non-superuser runtime role, transaction-local context set on every transaction, fail-closed policies when context is missing, and the leakage tests in Section I.</td></tr>
+<tr><td>R2</td><td>Cross-tenant relationships created through ordinary single-column foreign keys (a shipment in tenant A pointing at an order in tenant B).</td><td>Composite foreign keys on <code>(merchant_id, parent_id)</code> against a <code>UNIQUE (merchant_id, id)</code> pair on every parent table.</td></tr>
+<tr><td>R3</td><td>Missing money silently becoming zero during CSV parsing, defaulting or aggregation (<code>COALESCE</code> in a report query).</td><td>Per-field data-quality state stored beside every parsed amount, no database DEFAULT of 0 on any money column, CHECK rules tying state to nullability, and the NULL-versus-zero tests in Section I.</td></tr>
+<tr><td>R4</td><td>A later rule or template edit rewriting history.</td><td>Immutable versions, run snapshots of inputs, rules and mappings, and runtime-role privileges that deny UPDATE and DELETE on runs, results, findings and fee lines.</td></tr>
+<tr><td>R5</td><td>An unconfirmed contractual delivery fee (<code>D_c</code>) being assumed from expected or reported fees for a <code>cod_minus_delivery_fee</code> base.</td><td><code>D_c</code> exists only on a rule version with an explicit confirmation flag and a non-empty evidence reference; otherwise the affected fees and payouts are NULL and the result is <code>needs_review</code> with <code>DQ_MISSING_CONTRACT</code>.</td></tr>
+<tr><td>R6</td><td>Bank variance reported before the money picture is complete.</td><td>Bank variance is a stored NULL until the receipt is explicitly marked complete and the settlement batch is fully allocated; partial receipts are a status, never a discrepancy.</td></tr>
+<tr><td>R7</td><td>Duplicate tracking IDs and repeated statement lines being merged or summed.</td><td>No uniqueness is claimed on tracking ID alone within a merchant and courier where duplicates legitimately occur; duplicates are preserved, flagged and quarantined for human confirmation, and never summed or spread pro-rata.</td></tr>
+<tr><td>R8</td><td>Over-engineering for scale that has not been validated.</td><td>Shared schema, no partitioning, no sharding, no separate read replicas in M1. Partitioning of <code>import_rows</code> and <code>audit_logs</code> is noted only as a future option in Section F.</td></tr>
+</table>
+
+<h3>A.7 Major design decisions</h3>
+<table>
+<tr><th style="width:52mm">Decision</th><th style="width:20mm">Status</th><th>Rationale</th></tr>
+<tr><td>Shared database, shared schema, RLS tenancy</td><td>CONFIRMED</td><td>Approved baseline. Cheapest model that still gives database-enforced isolation, and proportionate for SME volumes.</td></tr>
+<tr><td><code>merchant_id</code> on every tenant-owned table, with composite tenant foreign keys</td><td>CONFIRMED</td><td>Makes every RLS policy a single-column comparison and makes cross-tenant references impossible at the constraint level.</td></tr>
+<tr><td>Money as BIGINT poisha; per-field data-quality state beside every source amount</td><td>CONFIRMED</td><td>V2.2.1 requires absent column, blank row, invalid value and explicit zero to remain distinct forever, not just at parse time.</td></tr>
+<tr><td>Runs snapshot inputs, rule versions, template and mapping, and tolerance</td><td>CONFIRMED</td><td>A historical result must be explainable after rules, templates and settings change.</td></tr>
+<tr><td>Findings as independent rows; three separate statuses on each result</td><td>CONFIRMED</td><td>P0 patch: contractual payout status, data-quality status and overall status (<code>matched</code>, <code>open</code>, <code>mismatch</code>, <code>needs_review</code>, <code>matched_with_tolerance</code>) are stored separately so no status hides another finding.</td></tr>
+<tr><td>Statement lines as a first-class entity between import rows and results</td><td>RECOMMENDED</td><td>See A.3. Blocks implementation if rejected, because results need a stable, snapshot-able input.</td></tr>
+<tr><td>Application-generated UUIDs; no database sequences exposed as identifiers</td><td>RECOMMENDED</td><td>Avoids leaking tenant volumes through sequential IDs and lets the application create related rows in one transaction.</td></tr>
+<tr><td>Soft state changes instead of hard deletes for financial history</td><td>RECOMMENDED</td><td>Corrections create new records or runs. Hard delete is reserved for the workspace-erasure workflow in Section G, which is a policy decision, not a routine operation.</td></tr>
+<tr><td>One active COD-bearing shipment per order, enforced by a partial unique index</td><td>CONFIRMED</td><td>MVP scope restriction. Split COD is out of scope and must be rejected, not silently accommodated.</td></tr>
+</table>
+<h3>A.8 Assumptions - not confirmed requirements</h3>
+<ul>
+<li><span class="tag">OPEN</span> Sellers work in a single workspace each in M1, while the membership model already supports many users per workspace and one user in many workspaces. Nothing in the schema prevents either.</li>
+<li><span class="tag">OPEN</span> CSV is the only ingestion route in M1 for all five couriers. No courier API table is designed, because no courier API contract has been verified.</li>
+<li><span class="tag">OPEN</span> Uploaded files are held in object storage outside PostgreSQL, referenced by <code>file_objects.storage_key</code>. Storing file bytes in the database is rejected for M1 (OD-05).</li>
+<li><span class="tag">OPEN</span> Bank evidence in M1 is a manually confirmed receipt record, as in V2. Bank CSV import is excluded from the MVP and no bank statement table is designed.</li>
+<li><span class="tag">OPEN</span> Statement templates are maintained per courier and versioned; whether a merchant may override a shared template is OD-07.</li>
+</ul>
+<h3>A.9 Conflicts identified, not silently resolved</h3>
+<div class="callout"><strong>Conflict 1 - audit completeness versus the ban on storing bank account numbers.</strong> Audit and receipt records must be traceable, but no bank account number, in full or in a reversible form, may be stored. Resolution proposed for review: receipts carry a merchant-supplied reference label and the last four digits only if a policy decision explicitly permits even that; the default in Section C stores no digits at all, only a free-text label the merchant controls. This needs the OD-09 decision before implementation.</div>
+<div class="callout"><strong>Conflict 2 - workspace erasure versus financial history retention.</strong> A merchant may ask for their workspace to be deleted, while reconciliation history is the product's evidence trail. Section G separates the two: personal data is erased, financial records are anonymised and retained only if a legal and policy decision says they must be. No retention period is asserted in this document.</div>
+
+<h2>B. Detailed Entity Relationship Diagram</h2>
+<p>The diagram is split into four sub-diagrams by module so that it stays readable. Together they cover every table specified in Section C. Notation: <code>PK</code> primary key, <code>FK</code> foreign key, <code>UK</code> part of a unique constraint. Cardinality uses Mermaid crow's-foot notation: <code>||--o{</code> is one-to-many with a mandatory parent, <code>|o--o{</code> allows a parent with no children yet, and <code>||--||</code> is one-to-one. Every tenant-owned child also carries <code>merchant_id</code> and is bound to its parent by a composite foreign key on <code>(merchant_id, parent_id)</code>; for readability the ERD shows the logical foreign key once.</p>
+<h3>B.1 Identity, workspace and courier configuration</h3>
+<pre>erDiagram
+  users ||--o{ merchant_memberships : "is member via"
+  merchants ||--o{ merchant_memberships : "has members"
+  users ||--o{ user_sessions : "holds"
+  merchants ||--|| workspace_settings : "configured by"
+  merchants ||--o{ audit_logs : "owns"
+  couriers ||--o{ merchant_courier_accounts : "connected as"
+  merchants ||--o{ merchant_courier_accounts : "connects"
+  couriers ||--o{ courier_statement_templates : "described by"
+  courier_statement_templates ||--o{ column_mappings : "maps fields via"
+  merchant_courier_accounts ||--o{ courier_rule_versions : "governed by"
+  courier_rule_versions ||--o{ courier_rule_evidence : "supported by"
+  users {
+    uuid id PK
+    text email UK
+    text display_name
+    timestamptz created_at
+  }
+  merchants {
+    uuid id PK
+    text name
+    text status
+    timestamptz created_at
+  }
+  merchant_memberships {
+    uuid id PK
+    uuid merchant_id FK
+    uuid user_id FK
+    text role
+    text status
+  }
+  user_sessions {
+    uuid id PK
+    uuid user_id FK
+    text refresh_token_hash UK
+    timestamptz expires_at
+  }
+  workspace_settings {
+    uuid id PK
+    uuid merchant_id FK,UK
+    bigint tolerance_poisha
+    text locale
+  }
+  couriers {
+    uuid id PK
+    text code UK
+    text name
+  }
+  merchant_courier_accounts {
+    uuid id PK
+    uuid merchant_id FK
+    uuid courier_id FK
+    text merchant_account_ref
+    text status
+  }
+  courier_statement_templates {
+    uuid id PK
+    uuid courier_id FK
+    int version_no
+    text content_hash UK
+    text status
+  }
+  column_mappings {
+    uuid id PK
+    uuid template_id FK
+    text canonical_field
+    text source_header
+  }
+  courier_rule_versions {
+    uuid id PK
+    uuid merchant_id FK
+    uuid merchant_courier_account_id FK
+    int version_no
+    text content_hash
+    boolean dc_confirmed
+    text status
+  }
+  courier_rule_evidence {
+    uuid id PK
+    uuid merchant_id FK
+    uuid rule_version_id FK
+    text evidence_type
+    text evidence_ref
+  }
+  audit_logs {
+    uuid id PK
+    uuid merchant_id FK
+    uuid actor_user_id FK
+    text action
+    timestamptz created_at
+  }</pre>
+
+<h3>B.2 Orders, shipments, import and statement lines</h3>
+<pre>erDiagram
+  merchants ||--o{ orders : "owns"
+  orders ||--o{ shipments : "fulfilled by"
+  merchants ||--o{ file_objects : "uploads"
+  file_objects ||--o{ import_batches : "imported as"
+  merchant_courier_accounts ||--o{ import_batches : "supplies statements to"
+  courier_statement_templates ||--o{ import_batches : "parsed with"
+  import_batches ||--o{ import_rows : "contains"
+  import_batches ||--o{ import_errors : "reports"
+  import_rows ||--o{ import_errors : "described by"
+  import_rows ||--o| statement_lines : "normalised into"
+  shipments ||--o{ statement_lines : "reported on"
+  shipments ||--o{ shipment_match_candidates : "matched via"
+  statement_lines ||--o{ shipment_match_candidates : "candidate for"
+  orders {
+    uuid id PK
+    uuid merchant_id FK
+    text merchant_order_ref
+    bigint order_cod_poisha
+    text currency
+  }
+  shipments {
+    uuid id PK
+    uuid merchant_id FK
+    uuid order_id FK
+    uuid merchant_courier_account_id FK
+    text tracking_id_normalised
+    text outcome
+    bigint expected_collectible_cod_poisha
+    boolean is_cod_bearing
+    boolean is_superseded
+  }
+  file_objects {
+    uuid id PK
+    uuid merchant_id FK
+    text storage_key UK
+    text sha256 UK
+    bigint size_bytes
+  }
+  import_batches {
+    uuid id PK
+    uuid merchant_id FK
+    uuid file_object_id FK
+    uuid template_id FK
+    jsonb mapping_snapshot
+    text status
+    text idempotency_key UK
+  }
+  import_rows {
+    uuid id PK
+    uuid merchant_id FK
+    uuid import_batch_id FK
+    int row_number
+    jsonb raw_values
+    text parse_status
+  }
+  import_errors {
+    uuid id PK
+    uuid merchant_id FK
+    uuid import_batch_id FK
+    uuid import_row_id FK
+    text field_name
+    text error_code
+  }
+  statement_lines {
+    uuid id PK
+    uuid merchant_id FK
+    uuid import_row_id FK
+    uuid shipment_id FK
+    bigint reported_collected_poisha
+    text reported_collected_state
+    bigint reported_payout_poisha
+    bigint reported_delivery_fee_poisha
+    text reported_delivery_fee_state
+  }
+  shipment_match_candidates {
+    uuid id PK
+    uuid merchant_id FK
+    uuid statement_line_id FK
+    uuid shipment_id FK
+    text match_basis
+    text decision
+  }</pre>
+<h3>B.3 Reconciliation</h3>
+<pre>erDiagram
+  merchants ||--o{ reconciliation_runs : "owns"
+  import_batches ||--o{ reconciliation_runs : "reconciled in"
+  courier_rule_versions ||--o{ reconciliation_runs : "applied in"
+  reconciliation_runs ||--o{ reconciliation_results : "produces"
+  shipments ||--o{ reconciliation_results : "result for"
+  statement_lines ||--o{ reconciliation_results : "compared in"
+  reconciliation_results ||--o{ reconciliation_fee_lines : "broken down by"
+  reconciliation_results ||--o{ reconciliation_findings : "raises"
+  reconciliation_runs {
+    uuid id PK
+    uuid merchant_id FK
+    uuid import_batch_id FK
+    jsonb input_snapshot
+    jsonb rule_snapshot
+    bigint tolerance_poisha
+    text status
+    text run_hash UK
+  }
+  reconciliation_results {
+    uuid id PK
+    uuid merchant_id FK
+    uuid run_id FK
+    uuid shipment_id FK
+    bigint expected_collectible_poisha
+    bigint reported_collected_poisha
+    bigint c_poisha
+    bigint v_cond_poisha
+    bigint v_total_poisha
+    text contractual_payout_status
+    text data_quality_status
+    text overall_status
+  }
+  reconciliation_fee_lines {
+    uuid id PK
+    uuid merchant_id FK
+    uuid result_id FK
+    text fee_code
+    bigint expected_basis_poisha
+    bigint reported_basis_poisha
+    bigint reported_actual_poisha
+    text data_quality_state
+  }
+  reconciliation_findings {
+    uuid id PK
+    uuid merchant_id FK
+    uuid result_id FK
+    text finding_type
+    text category
+    bigint amount_poisha
+    text finding_code
+  }</pre>
+
+<h3>B.4 Settlement and supporting records</h3>
+<pre>erDiagram
+  merchants ||--o{ settlement_batches : "owns"
+  merchant_courier_accounts ||--o{ settlement_batches : "settled for"
+  reconciliation_runs ||--o{ settlement_batches : "expected from"
+  settlement_batches ||--o{ bank_receipts : "paid by"
+  settlement_batches ||--o{ settlement_allocations : "allocated via"
+  bank_receipts ||--o{ settlement_allocations : "allocated from"
+  merchants ||--o{ idempotency_keys : "issues"
+  settlement_batches {
+    uuid id PK
+    uuid merchant_id FK
+    uuid merchant_courier_account_id FK
+    bigint expected_batch_payout_poisha
+    bigint bank_variance_poisha
+    text allocation_status
+  }
+  bank_receipts {
+    uuid id PK
+    uuid merchant_id FK
+    uuid settlement_batch_id FK
+    bigint amount_poisha
+    boolean is_complete
+    text receipt_ref_label
+    date received_on
+  }
+  settlement_allocations {
+    uuid id PK
+    uuid merchant_id FK
+    uuid settlement_batch_id FK
+    uuid bank_receipt_id FK
+    bigint allocated_poisha
+  }
+  idempotency_keys {
+    uuid id PK
+    uuid merchant_id FK
+    text key UK
+    text operation
+    text result_ref
+  }</pre>
+<h3>B.5 Relationship notes a reviewer should check</h3>
+<ul>
+<li><strong>Mandatory versus optional.</strong> A result must have exactly one run, one shipment and, where a statement line was matched, one statement line; an unmatched or missing-line result is represented with a NULL statement line plus a data-quality finding, never with a fabricated line. A settlement batch may exist with no receipts; a receipt may exist with no allocations; bank variance stays NULL in both cases.</li>
+<li><strong>Optional rule evidence.</strong> A rule version may exist in draft with no evidence, but it cannot become active for a <code>cod_minus_delivery_fee</code> base without a confirmation flag and evidence - enforced by CHECK constraints in Section C, not only by application code.</li>
+<li><strong>Superseded shipments</strong> keep all relationships and history. They are excluded from active reconciliation by a partial index and query rule, not by deletion or by breaking their foreign keys.</li>
+<li><strong>Uniqueness that is deliberately absent.</strong> There is no unique constraint on <code>(merchant_id, courier, tracking_id)</code>. Duplicate tracking IDs occur in real statements and must be preserved and flagged. Uniqueness is enforced instead on the active COD-bearing shipment per order, on idempotency keys, on file hashes per merchant, and on version numbers within their parent.</li>
+</ul>
+
+<h2>C. Table-by-Table Specification</h2>
+<p>Reading note: every table lists its purpose, then its columns. <strong>Key / constraints</strong> combines primary key (PK), foreign key (FK), unique (UK), CHECK and DEFAULT information to keep the specification readable. <strong>Tenant class</strong> is one of <em>Global</em> (shared reference data), <em>Tenant-owned</em> (carries <code>merchant_id</code>, RLS enforced), or <em>Identity</em> (user-level, protected by membership checks rather than a merchant RLS policy). Indexes listed are in addition to the primary key. A composite <code>UNIQUE (merchant_id, id)</code> is required on every tenant-owned parent table so children can use composite tenant foreign keys; it is stated once here and applies throughout.</p>
+<h3>C.1 Identity and workspace</h3>
+<h4>users - a person who can sign in. Identity class. No RLS merchant policy; access controlled by authentication and membership.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>email</code></td><td>TEXT</td><td>NOT NULL</td><td>UK, stored lower-cased; CHECK contains '@'</td></tr>
+<tr><td><code>display_name</code></td><td>TEXT</td><td>NULL</td><td>-</td></tr>
+<tr><td><code>password_hash</code></td><td>TEXT</td><td>NULL</td><td>NULL when an external identity provider is used (OD-03). Never store a plain password.</td></tr>
+<tr><td><code>status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('active','invited','suspended','closed'); DEFAULT 'active'</td></tr>
+<tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: Mutable, audited. Indexes: unique on lower(email) is the lookup index.</p>
+<h4>merchants - the tenant workspace (a seller business). Tenant root. RLS: a member may read only workspaces they belong to; creation is a controlled function.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK. This value is <code>merchant_id</code> on every tenant table.</td></tr>
+<tr><td><code>name</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK length 1-200</td></tr>
+<tr><td><code>trading_name</code></td><td>TEXT</td><td>NULL</td><td>-</td></tr>
+<tr><td><code>status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('active','suspended','closing','closed'); DEFAULT 'active'</td></tr>
+<tr><td><code>created_by_user_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+<tr><td><code>closed_at</code></td><td>TIMESTAMPTZ</td><td>NULL</td><td>Set only by the workspace-closure workflow in Section G.</td></tr>
+</table>
+<p class="small">Immutability: Mutable except identity fields after closure. No tenant column of its own.</p>
+<h4>merchant_memberships - which users belong to which workspace, and in what role. Tenant-owned. RLS enforced.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id); UK part of (merchant_id, user_id)</td></tr>
+<tr><td><code>user_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>role</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('owner','admin','member','viewer')</td></tr>
+<tr><td><code>status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('active','invited','revoked'); DEFAULT 'invited'</td></tr>
+<tr><td><code>invited_by_user_id</code></td><td>UUID</td><td>NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: Mutable, audited; role changes are audit-logged. Indexes: (merchant_id, status), (user_id, status). Partial unique index guaranteeing at least the possibility of one active owner is an application rule, not a database constraint - the database cannot express "at least one" without a deferred trigger, which is noted as OD-11.</p>
+<h4>user_sessions - revocable sign-in sessions. Identity class.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>user_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>refresh_token_hash</code></td><td>TEXT</td><td>NOT NULL</td><td>UK. Hash only; a raw token must never be stored.</td></tr>
+<tr><td><code>device_label</code></td><td>TEXT</td><td>NULL</td><td>Merchant/user-supplied label only.</td></tr>
+<tr><td><code>expires_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>-</td></tr>
+<tr><td><code>revoked_at</code></td><td>TIMESTAMPTZ</td><td>NULL</td><td>-</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: Mutable for revocation only. Indexes: (user_id, expires_at). Expired and revoked rows are purged under Section G.</p>
+
+<h3>C.2 Courier configuration</h3>
+<h4>couriers - global reference list of supported couriers. Global class. No merchant RLS; read-only for the runtime role.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>code</code></td><td>TEXT</td><td>NOT NULL</td><td>UK; CHECK in ('steadfast','pathao','paperfly','redx','ecourier'). Adding a code is a migration, not user data.</td></tr>
+<tr><td><code>name</code></td><td>TEXT</td><td>NOT NULL</td><td>Display name only. No rate, fee or format information is stored on this table.</td></tr>
+<tr><td><code>is_active</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>DEFAULT true</td></tr>
+</table>
+<p class="small">Immutability: Mutable by migration/admin only. This table must never acquire rate columns: rates are per merchant, per account and per evidence-backed rule version.</p>
+<h4>merchant_courier_accounts - a merchant's account with one courier. Tenant-owned. RLS enforced.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>courier_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to couriers(id)</td></tr>
+<tr><td><code>merchant_account_ref</code></td><td>TEXT</td><td>NULL</td><td>The merchant's own account identifier as they supply it. Not a credential.</td></tr>
+<tr><td><code>display_label</code></td><td>TEXT</td><td>NULL</td><td>-</td></tr>
+<tr><td><code>status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('active','inactive'); DEFAULT 'active'</td></tr>
+<tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: Mutable, audited. Indexes: (merchant_id, courier_id, status). No unique rule prevents two accounts with the same courier - a seller may legitimately hold two - so duplicates are allowed and labelled.</p>
+<h4>courier_statement_templates - a versioned description of one courier statement layout. Global template with optional merchant ownership (OD-07); the columns below show the global form. Versioned and immutable once used.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>courier_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to couriers(id); UK part of (courier_id, version_no)</td></tr>
+<tr><td><code>version_no</code></td><td>INTEGER</td><td>NOT NULL</td><td>CHECK &gt; 0</td></tr>
+<tr><td><code>name</code></td><td>TEXT</td><td>NOT NULL</td><td>-</td></tr>
+<tr><td><code>header_fingerprint</code></td><td>TEXT</td><td>NULL</td><td>Normalised header signature used only to suggest a template, never to auto-apply financial rules.</td></tr>
+<tr><td><code>content_hash</code></td><td>TEXT</td><td>NOT NULL</td><td>Hash of the template plus its column mappings.</td></tr>
+<tr><td><code>status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('draft','active','retired'); DEFAULT 'draft'</td></tr>
+<tr><td><code>evidence_ref</code></td><td>TEXT</td><td>NULL</td><td>Where the layout was verified from. A template layout is not contract evidence and must not be used as such.</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: Versioned. Once any import batch references a template, its mappings may not be edited; a correction is a new version.</p>
+<h4>column_mappings - one canonical field mapped from one source header, within one template. Child of a template.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>template_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to courier_statement_templates(id); UK part of (template_id, canonical_field)</td></tr>
+<tr><td><code>canonical_field</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in the canonical field list: tracking_id, merchant_order_ref, reported_collected, reported_payout, delivery_fee, cod_fee, return_fee, other_fee, shipment_status, statement_date and the remaining fields enumerated in the implementation ticket. The list is closed.</td></tr>
+<tr><td><code>source_header</code></td><td>TEXT</td><td>NOT NULL</td><td>Header text exactly as it appears in the source file.</td></tr>
+<tr><td><code>source_header_normalised</code></td><td>TEXT</td><td>NOT NULL</td><td>Lower-cased, trimmed form used for matching.</td></tr>
+<tr><td><code>is_required</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>DEFAULT false. A missing required column makes the whole column absent-state for every row (Section D).</td></tr>
+</table>
+<p class="small">Immutability: Versioned with its template. Indexes: (template_id). Per-import truth is the snapshot on <code>import_batches</code>, not this table.</p>
+
+<h4>courier_rule_versions - one immutable, evidence-backed version of the fee and payout rules for one merchant courier account. Tenant-owned. RLS enforced. Versioned and immutable once active.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>merchant_courier_account_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK (merchant_id, merchant_courier_account_id) to merchant_courier_accounts; UK part of (account, version_no)</td></tr>
+<tr><td><code>version_no</code></td><td>INTEGER</td><td>NOT NULL</td><td>CHECK &gt; 0</td></tr>
+<tr><td><code>status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('draft','active','superseded','retired'); DEFAULT 'draft'</td></tr>
+<tr><td><code>effective_from / effective_to</code></td><td>TIMESTAMPTZ</td><td>NULL / NULL</td><td>CHECK effective_to is NULL or &gt; effective_from. Overlap of active versions for one account is prevented by an exclusion rule or a controlled activation transaction (OD-10).</td></tr>
+<tr><td><code>cod_fee_base</code></td><td>TEXT</td><td>NULL</td><td>CHECK in ('expected_collectible','reported_collected','cod_minus_delivery_fee') or NULL when unknown. NULL means the base is not established and no contractual COD fee may be calculated.</td></tr>
+<tr><td><code>cod_fee_rate_bps</code></td><td>INTEGER</td><td>NULL</td><td>Rate in basis points, not money. CHECK between 0 and 10000 when present.</td></tr>
+<tr><td><code>contractual_delivery_fee_poisha</code> (D_c)</td><td>BIGINT</td><td>NULL</td><td>The merchant-confirmed contractual delivery fee used only as the subtractor for a <code>cod_minus_delivery_fee</code> base. Never copied from expected or reported delivery fees.</td></tr>
+<tr><td><code>dc_confirmed</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>DEFAULT false. Must be explicitly set; supplying a D_c value alone never sets it.</td></tr>
+<tr><td><code>dc_evidence_ref</code></td><td>TEXT</td><td>NULL</td><td>Required, non-empty, when <code>dc_confirmed</code> is true.</td></tr>
+<tr><td><code>delivery_fee_poisha</code>, <code>return_fee_poisha</code></td><td>BIGINT</td><td>NULL</td><td>Contractual fee amounts only where merchant-confirmed. NULL when unknown.</td></tr>
+<tr><td><code>vat_mode</code></td><td>TEXT</td><td>NULL</td><td>CHECK in ('included_rate_on_net','included_rate_on_gross','excluded','unknown') or NULL. An included-tax breakdown is calculated only when mode and rate are both known.</td></tr>
+<tr><td><code>vat_rate_bps</code></td><td>INTEGER</td><td>NULL</td><td>CHECK between 0 and 10000 when present.</td></tr>
+<tr><td><code>rule_definition</code></td><td>JSONB</td><td>NOT NULL</td><td>Full structured rule definition for fee components not given their own columns. Validated against a versioned schema in the application and hashed.</td></tr>
+<tr><td><code>content_hash</code></td><td>TEXT</td><td>NOT NULL</td><td>Hash of the complete rule definition, copied into every run snapshot.</td></tr>
+<tr><td><code>created_by_user_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Key CHECK (paraphrased; full form in the migration review): if <code>cod_fee_base = 'cod_minus_delivery_fee'</code> and the version is active, then <code>dc_confirmed</code> must be true, <code>dc_evidence_ref</code> must be non-empty and <code>contractual_delivery_fee_poisha</code> must be NOT NULL. If any of those fails, the version may exist as a draft but any reconciliation using it must produce NULL fees and payouts for the affected base and a <code>DQ_MISSING_CONTRACT</code> finding. Indexes: (merchant_id, merchant_courier_account_id, status), unique partial index allowing only one active version per account at a time where the activation model requires it (OD-10).</p>
+<h4>courier_rule_evidence - provenance for a rule version: what the merchant confirmed, and how. Tenant-owned. RLS enforced. Append-only.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>rule_version_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK (merchant_id, rule_version_id) to courier_rule_versions</td></tr>
+<tr><td><code>evidence_type</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('merchant_confirmation','signed_rate_card','courier_letter','statement_annotation','other_documented')</td></tr>
+<tr><td><code>evidence_ref</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK length &gt; 0. Reference to the merchant-held document or confirmation record. Public pricing pages are not acceptable evidence and must be rejected by application validation.</td></tr>
+<tr><td><code>file_object_id</code></td><td>UUID</td><td>NULL</td><td>Composite FK to file_objects when the evidence is an uploaded file.</td></tr>
+<tr><td><code>confirmed_by_user_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>confirmed_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+<tr><td><code>note</code></td><td>TEXT</td><td>NULL</td><td>-</td></tr>
+</table>
+<p class="small">Immutability: Append-only. Correcting evidence adds a new row and, where the correction changes a rule, a new rule version. Indexes: (merchant_id, rule_version_id).</p>
+
+<h3>C.3 Orders and shipments</h3>
+<h4>orders - a seller order as the merchant records it. Tenant-owned. RLS enforced.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>merchant_order_ref</code></td><td>TEXT</td><td>NOT NULL</td><td>The merchant's own order identifier. UK part of (merchant_id, merchant_order_ref) only where the merchant confirms refs are unique; otherwise indexed, not unique (OD-08).</td></tr>
+<tr><td><code>order_cod_poisha</code></td><td>BIGINT</td><td>NULL</td><td>Original order COD. NULL when unknown - never defaulted to 0 and never copied onto shipments as an assumption. CHECK &gt;= 0 when present.</td></tr>
+<tr><td><code>currency</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK = 'BDT' in M1; DEFAULT 'BDT'. Multi-currency is out of scope.</td></tr>
+<tr><td><code>ordered_at</code></td><td>TIMESTAMPTZ</td><td>NULL</td><td>-</td></tr>
+<tr><td><code>source</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('manual','csv_import','demo_synthetic'); DEFAULT 'manual'</td></tr>
+<tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: Mutable before reconciliation; once an order's shipments appear in a run, the run holds the snapshot and later edits never alter the run. Indexes: (merchant_id, merchant_order_ref), (merchant_id, created_at).</p>
+<h4>shipments - one physical shipment under an order, with its confirmed outcome and expected collectible COD. Tenant-owned. RLS enforced.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>order_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK (merchant_id, order_id) to orders</td></tr>
+<tr><td><code>merchant_courier_account_id</code></td><td>UUID</td><td>NULL</td><td>Composite FK to merchant_courier_accounts. NULL until the courier account is known.</td></tr>
+<tr><td><code>tracking_id_raw</code></td><td>TEXT</td><td>NULL</td><td>Exactly as supplied. Never overwritten by the normalised form.</td></tr>
+<tr><td><code>tracking_id_normalised</code></td><td>TEXT</td><td>NULL</td><td>Trimmed, case-normalised form used for strong matching. Blank after normalisation is stored as NULL plus a data-quality flag, not as an empty string.</td></tr>
+<tr><td><code>outcome</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('delivered','partially_delivered','returned','cancelled','in_transit','unknown'); DEFAULT 'unknown'</td></tr>
+<tr><td><code>outcome_source</code></td><td>TEXT</td><td>NULL</td><td>CHECK in ('merchant_confirmed','statement','system_inferred_label_only') - an inferred label may never set a financial amount.</td></tr>
+<tr><td><code>expected_collectible_cod_poisha</code> (E basis)</td><td>BIGINT</td><td>NULL</td><td>Per V2.1: delivered = amount to collect; partially delivered = documented partial amount only, else NULL; confirmed return or cancellation = verified 0; unknown or in-transit = NULL. CHECK &gt;= 0 when present.</td></tr>
+<tr><td><code>partial_amount_evidence_ref</code></td><td>TEXT</td><td>NULL</td><td>Required non-empty when a partial amount is recorded from documentation.</td></tr>
+<tr><td><code>is_cod_bearing</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>DEFAULT false</td></tr>
+<tr><td><code>is_superseded</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>DEFAULT false. Superseded rows remain queryable history.</td></tr>
+<tr><td><code>superseded_by_shipment_id</code></td><td>UUID</td><td>NULL</td><td>Composite FK to shipments (same merchant, same order). CHECK: set only when is_superseded is true.</td></tr>
+<tr><td><code>superseded_reason</code></td><td>TEXT</td><td>NULL</td><td>-</td></tr>
+<tr><td><code>shipped_on</code></td><td>DATE</td><td>NULL</td><td>Used by the weak-match date window only when both dates exist.</td></tr>
+<tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: Mutable, with outcome changes audited; runs snapshot what they used. Indexes: (merchant_id, tracking_id_normalised), (merchant_id, order_id), (merchant_id, merchant_courier_account_id, outcome). <strong>Partial unique index:</strong> <code>UNIQUE (merchant_id, order_id) WHERE is_cod_bearing AND NOT is_superseded</code> - this is the database enforcement of "one active COD-bearing shipment per order". Any split-COD attempt fails this index and must be surfaced for review, never accommodated silently.</p>
+
+<h3>C.4 CSV import</h3>
+<h4>file_objects - metadata for an uploaded file held outside the database. Tenant-owned. RLS enforced. Append-only.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>storage_key</code></td><td>TEXT</td><td>NOT NULL</td><td>UK. Opaque object-storage key; never a public URL.</td></tr>
+<tr><td><code>original_filename</code></td><td>TEXT</td><td>NOT NULL</td><td>For display only; never trusted as a path.</td></tr>
+<tr><td><code>sha256</code></td><td>TEXT</td><td>NOT NULL</td><td>UK part of (merchant_id, sha256) - re-uploading the identical file for the same merchant is detected, not silently duplicated.</td></tr>
+<tr><td><code>size_bytes</code></td><td>BIGINT</td><td>NOT NULL</td><td>CHECK &gt;= 0</td></tr>
+<tr><td><code>content_type</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('text/csv','application/vnd.ms-excel') for M1 CSV scope.</td></tr>
+<tr><td><code>uploaded_by_user_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+<tr><td><code>purged_at</code></td><td>TIMESTAMPTZ</td><td>NULL</td><td>Set when the stored bytes are deleted under Section G; the metadata row and hash remain.</td></tr>
+</table>
+<h4>import_batches - one CSV import attempt for one courier account. Tenant-owned. RLS enforced.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>file_object_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to file_objects</td></tr>
+<tr><td><code>merchant_courier_account_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to merchant_courier_accounts</td></tr>
+<tr><td><code>template_id</code></td><td>UUID</td><td>NULL</td><td>FK to courier_statement_templates. NULL while unmapped.</td></tr>
+<tr><td><code>template_version_no</code></td><td>INTEGER</td><td>NULL</td><td>Copied at mapping time so the batch is self-describing.</td></tr>
+<tr><td><code>mapping_snapshot</code></td><td>JSONB</td><td>NULL</td><td>The exact mapping applied. Immutable once status leaves 'uploaded'. This snapshot, not the live template, is what a run records.</td></tr>
+<tr><td><code>status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('uploaded','mapped','parsed','parse_failed','ready','superseded'); DEFAULT 'uploaded'</td></tr>
+<tr><td><code>row_count / parsed_row_count / error_row_count</code></td><td>INTEGER</td><td>NOT NULL</td><td>DEFAULT 0; CHECK &gt;= 0. Counts are operational metadata, never money, so a 0 default is correct here.</td></tr>
+<tr><td><code>statement_period_start / _end</code></td><td>DATE</td><td>NULL</td><td>Merchant-declared or parsed period, labelled by source in the application.</td></tr>
+<tr><td><code>idempotency_key</code></td><td>TEXT</td><td>NULL</td><td>UK part of (merchant_id, idempotency_key) where present.</td></tr>
+<tr><td><code>created_by_user_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: status and counts are mutable during import; <code>mapping_snapshot</code>, file and account references are immutable after parsing. Indexes: (merchant_id, status, created_at), (merchant_id, merchant_courier_account_id, created_at).</p>
+<h4>import_rows - one raw CSV row, preserved verbatim. Tenant-owned. RLS enforced. Append-only after parsing.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>import_batch_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to import_batches; UK part of (import_batch_id, row_number)</td></tr>
+<tr><td><code>row_number</code></td><td>INTEGER</td><td>NOT NULL</td><td>CHECK &gt; 0. Position in the source file, counting data rows as defined in the import specification.</td></tr>
+<tr><td><code>raw_values</code></td><td>JSONB</td><td>NOT NULL</td><td>Object of source header to raw string exactly as read, including blanks as empty strings and absent columns as absent keys. This distinction is load-bearing: absent key, blank value and "0" are three different states.</td></tr>
+<tr><td><code>raw_line_hash</code></td><td>TEXT</td><td>NOT NULL</td><td>Hash of the raw row, used for duplicate-row detection.</td></tr>
+<tr><td><code>parse_status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('parsed','parsed_with_warnings','failed','skipped_blank')</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Indexes: (merchant_id, import_batch_id, row_number). Duplicate rows are kept and flagged; no unique constraint merges them.</p>
+<h4>import_errors - one error or warning against a batch, row or field. Tenant-owned. RLS enforced. Append-only.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>import_batch_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to import_batches</td></tr>
+<tr><td><code>import_row_id</code></td><td>UUID</td><td>NULL</td><td>Composite FK to import_rows. NULL for batch-level errors such as a missing column.</td></tr>
+<tr><td><code>field_name</code></td><td>TEXT</td><td>NULL</td><td>Canonical field name, or NULL for row/batch-level errors.</td></tr>
+<tr><td><code>severity</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('error','warning')</td></tr>
+<tr><td><code>error_code</code></td><td>TEXT</td><td>NOT NULL</td><td>Closed list including COLUMN_ABSENT, VALUE_BLANK, VALUE_INVALID, VALUE_UNPARSABLE, DUPLICATE_TRACKING, AMBIGUOUS_MATCH. Codes are stable API surface.</td></tr>
+<tr><td><code>message</code></td><td>TEXT</td><td>NOT NULL</td><td>Human-readable explanation in English; Bangla explanation is supplied by the presentation layer for financial statuses.</td></tr>
+<tr><td><code>raw_value</code></td><td>TEXT</td><td>NULL</td><td>The offending raw string, preserved for diagnosis. NULL when the problem is absence itself.</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Indexes: (merchant_id, import_batch_id, severity), (merchant_id, import_row_id).</p>
+
+<h4>statement_lines - the normalised courier-reported values for one imported row, with per-field data-quality state. Tenant-owned. RLS enforced. Append-only; a corrected statement creates new lines in a new batch.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>import_row_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to import_rows; UK - one normalised line per raw row</td></tr>
+<tr><td><code>import_batch_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to import_batches (denormalised for tenant-scoped queries, kept consistent by the composite key through the row)</td></tr>
+<tr><td><code>shipment_id</code></td><td>UUID</td><td>NULL</td><td>Composite FK to shipments. NULL while unmatched; set only by a strong match or a human-confirmed candidate, never by amount alone.</td></tr>
+<tr><td><code>match_status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('strong_matched','human_confirmed','unmatched','ambiguous','duplicate'); DEFAULT 'unmatched'</td></tr>
+<tr><td><code>tracking_id_raw / _normalised</code></td><td>TEXT</td><td>NULL</td><td>As reported on this statement, preserved separately from the shipment's own values.</td></tr>
+<tr><td><code>merchant_order_ref_raw</code></td><td>TEXT</td><td>NULL</td><td>As reported; used only by the defined weak-match fallback.</td></tr>
+<tr><td><code>reported_status_raw</code></td><td>TEXT</td><td>NULL</td><td>Courier status text exactly as reported.</td></tr>
+<tr><td><code>statement_date</code></td><td>DATE</td><td>NULL</td><td>-</td></tr>
+<tr><td><code>reported_collected_poisha</code> (R)</td><td>BIGINT</td><td>NULL</td><td>CHECK &gt;= 0 when present. No DEFAULT.</td></tr>
+<tr><td><code>reported_collected_state</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('present_valid','explicit_zero','column_absent','blank','invalid'). See the state rules below.</td></tr>
+<tr><td><code>reported_payout_poisha</code> (P_r)</td><td>BIGINT</td><td>NULL</td><td>CHECK &gt;= 0 when present, except that a statement may legitimately report a negative net amount for a return-heavy line - that case is OD-12 and must not be silently clamped to 0.</td></tr>
+<tr><td><code>reported_payout_state</code></td><td>TEXT</td><td>NOT NULL</td><td>Same CHECK list as reported_collected_state.</td></tr>
+<tr><td><code>reported_delivery_fee_poisha</code> (D_r)</td><td>BIGINT</td><td>NULL</td><td>Reported delivery fee. Kept strictly separate from expected D_e and contractual D_c.</td></tr>
+<tr><td><code>reported_delivery_fee_state</code></td><td>TEXT</td><td>NOT NULL</td><td>Same CHECK list.</td></tr>
+<tr><td><code>reported_cod_fee_poisha</code>, <code>reported_return_fee_poisha</code>, <code>reported_other_fee_poisha</code></td><td>BIGINT</td><td>NULL</td><td>Each with a companion <code>_state</code> column using the same CHECK list. Additional courier fee columns go to fee detail only through a template-defined canonical field, never into an untyped catch-all amount.</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<div class="keybox"><strong>State-to-value CHECK, applied to every amount/state pair.</strong> <code>present_valid</code> requires a NOT NULL value greater than 0; <code>explicit_zero</code> requires the value to be exactly 0; <code>column_absent</code>, <code>blank</code> and <code>invalid</code> all require the value to be NULL. This single pattern is what makes "missing is not zero" a database guarantee rather than a parsing convention. It also drives Section D: any fee line in an absent, blank or invalid state makes the affected totals NULL, not smaller.</div>
+<p class="small">Indexes: (merchant_id, import_batch_id), (merchant_id, shipment_id), (merchant_id, tracking_id_normalised), (merchant_id, match_status) partial on unmatched and ambiguous.</p>
+<h4>shipment_match_candidates - every candidate match considered for a statement line, with its basis and decision. Tenant-owned. RLS enforced. Append-only, with a single decision update recorded by audit.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>statement_line_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to statement_lines</td></tr>
+<tr><td><code>shipment_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to shipments</td></tr>
+<tr><td><code>match_basis</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('strong_tracking','weak_order_ref'). There is deliberately no 'amount' value in this list: amount alone can never create a candidate.</td></tr>
+<tr><td><code>rank</code></td><td>INTEGER</td><td>NOT NULL</td><td>CHECK &gt; 0. Deterministic ordering defined in Section D.</td></tr>
+<tr><td><code>decision</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('proposed','confirmed','rejected','superseded'); DEFAULT 'proposed'</td></tr>
+<tr><td><code>decided_by_user_id</code></td><td>UUID</td><td>NULL</td><td>FK to users(id). Required by application rule when decision is confirmed or rejected by a human.</td></tr>
+<tr><td><code>decided_at</code></td><td>TIMESTAMPTZ</td><td>NULL</td><td>-</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Partial unique index: at most one confirmed candidate per statement line - <code>UNIQUE (statement_line_id) WHERE decision = 'confirmed'</code>. Indexes: (merchant_id, statement_line_id), (merchant_id, shipment_id).</p>
+
+<h3>C.5 Reconciliation</h3>
+<h4>reconciliation_runs - one immutable execution of the reconciliation engine over one import batch. Tenant-owned. RLS enforced. Append-only.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>import_batch_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to import_batches</td></tr>
+<tr><td><code>merchant_courier_account_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to merchant_courier_accounts</td></tr>
+<tr><td><code>rule_version_id</code></td><td>UUID</td><td>NULL</td><td>Composite FK to courier_rule_versions. NULL only where no rule version exists, in which case every contractual output of the run is NULL and every result is needs_review.</td></tr>
+<tr><td><code>rule_version_no / rule_content_hash</code></td><td>INTEGER / TEXT</td><td>NULL</td><td>Copied from the rule version at run time.</td></tr>
+<tr><td><code>rule_snapshot</code></td><td>JSONB</td><td>NOT NULL</td><td>Complete rule definition as applied, including D_c, its confirmation flag and evidence reference. Immutable.</td></tr>
+<tr><td><code>input_snapshot</code></td><td>JSONB</td><td>NOT NULL</td><td>Identifiers and hashes of the statement lines, shipments, mapping snapshot and template version used. Immutable.</td></tr>
+<tr><td><code>mapping_snapshot</code></td><td>JSONB</td><td>NOT NULL</td><td>Copied from the import batch. Immutable.</td></tr>
+<tr><td><code>tolerance_poisha</code></td><td>BIGINT</td><td>NOT NULL</td><td>CHECK &gt;= 0. Copied from workspace settings at run time; DEFAULT is not used - the value must be read and recorded. Approved default tolerance is 0 poisha, set in settings, not in this table.</td></tr>
+<tr><td><code>engine_version</code></td><td>TEXT</td><td>NOT NULL</td><td>Version of the calculation engine that produced the run, so a later engine change never silently reinterprets an old run.</td></tr>
+<tr><td><code>status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('running','completed','failed'); DEFAULT 'running'. A failed run keeps its row and its error; it produces no results.</td></tr>
+<tr><td><code>run_hash</code></td><td>TEXT</td><td>NOT NULL</td><td>UK part of (merchant_id, run_hash). Hash of inputs, rule snapshot, tolerance and engine version. Identical inputs must produce an identical hash - the determinism test in Section I.</td></tr>
+<tr><td><code>idempotency_key</code></td><td>TEXT</td><td>NULL</td><td>UK part of (merchant_id, idempotency_key) where present.</td></tr>
+<tr><td><code>created_by_user_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>created_at / completed_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL / NULL</td><td>created_at DEFAULT now(). completed_at is the only post-creation update permitted, together with status.</td></tr>
+</table>
+<p class="small">Immutability: Append-only. The runtime role is granted INSERT and SELECT, plus a narrow UPDATE of status and completed_at only through a column-level grant or a controlled function (Section E). There is no delete path and no API endpoint that edits or deletes a run. Indexes: (merchant_id, import_batch_id, created_at), (merchant_id, created_at).</p>
+<h4>reconciliation_results - the calculated comparison for one shipment in one run. Tenant-owned. RLS enforced. Append-only.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id); UK part of (run_id, shipment_id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>run_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to reconciliation_runs</td></tr>
+<tr><td><code>shipment_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to shipments</td></tr>
+<tr><td><code>statement_line_id</code></td><td>UUID</td><td>NULL</td><td>Composite FK to statement_lines. NULL means no matched line; a data-quality finding must explain it.</td></tr>
+<tr><td><code>expected_collectible_poisha</code> (E)</td><td>BIGINT</td><td>NULL</td><td>Snapshot of the shipment's expected collectible COD at run time.</td></tr>
+<tr><td><code>reported_collected_poisha</code> (R)</td><td>BIGINT</td><td>NULL</td><td>Snapshot from the statement line.</td></tr>
+<tr><td><code>c_poisha</code> (C = R - E)</td><td>BIGINT</td><td>NULL</td><td>NULL when either input is NULL. CHECK by construction in the engine; the database stores the value and the identity checks below.</td></tr>
+<tr><td><code>x_e_poisha</code> (X_e)</td><td>BIGINT</td><td>NULL</td><td>Total expected-basis deductions: the sum of expected-basis fee lines. NULL if any required line is NULL.</td></tr>
+<tr><td><code>x_r_poisha</code> (X_r)</td><td>BIGINT</td><td>NULL</td><td>Total deductions actually reported. NULL if any required reported line is in an absent, blank or invalid state.</td></tr>
+<tr><td><code>x_upper_r_poisha</code> (X_R)</td><td>BIGINT</td><td>NULL</td><td>Total deductions recalculated on the reported basis under the confirmed rules.</td></tr>
+<tr><td><code>delta_poisha</code> (delta = X_R - X_e)</td><td>BIGINT</td><td>NULL</td><td>-</td></tr>
+<tr><td><code>v_r_poisha</code> (V_R = X_r - X_R)</td><td>BIGINT</td><td>NULL</td><td>Reported-basis fee/tax variance.</td></tr>
+<tr><td><code>p_e_poisha</code> (P_e)</td><td>BIGINT</td><td>NULL</td><td>Expected-collection scenario payout.</td></tr>
+<tr><td><code>p_cond_poisha</code> (P_cond)</td><td>BIGINT</td><td>NULL</td><td>Payout conditional on reported collection - the contractual comparison target for a reported_collected base.</td></tr>
+<tr><td><code>p_r_poisha</code> (P_r)</td><td>BIGINT</td><td>NULL</td><td>Reported payout, snapshotted from the statement line.</td></tr>
+<tr><td><code>s_poisha</code> (S)</td><td>BIGINT</td><td>NULL</td><td>Statement inconsistency residual, S = P_r - (R - X_r). Never forced to zero.</td></tr>
+<tr><td><code>v_cond_poisha</code> (V_cond)</td><td>BIGINT</td><td>NULL</td><td>V_cond = P_r - P_cond, and must equal S - V_R when all inputs are present.</td></tr>
+<tr><td><code>v_total_poisha</code> (V_total)</td><td>BIGINT</td><td>NULL</td><td>V_total = P_r - P_e, and must equal C - delta - V_R + S when all inputs are present. Scenario-only for a reported_collected base.</td></tr>
+<tr><td><code>contractual_payout_status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('matched','mismatch','matched_with_tolerance','not_calculable')</td></tr>
+<tr><td><code>data_quality_status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('ok','has_warnings','needs_review')</td></tr>
+<tr><td><code>overall_status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('matched','open','mismatch','needs_review','matched_with_tolerance'). Derivation rules in Section D.</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Identity CHECKs, applied only when every term is NOT NULL: <code>v_total_poisha = c_poisha - delta_poisha - v_r_poisha + s_poisha</code> and <code>v_cond_poisha = s_poisha - v_r_poisha</code>. Where any term is NULL, the dependent values must also be NULL - a partial identity is never stored. Indexes: (merchant_id, run_id), (merchant_id, shipment_id), (merchant_id, overall_status) partial for open, mismatch and needs_review work queues.</p>
+
+<h4>reconciliation_fee_lines - one fee component of one result, in all three bases, with its rounding and data-quality state. Tenant-owned. RLS enforced. Append-only.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (result_id, fee_code)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>result_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to reconciliation_results</td></tr>
+<tr><td><code>fee_code</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('delivery_fee','cod_fee','return_fee','vat_on_fee','other_fee'). The list is closed; a new fee type is a specification change.</td></tr>
+<tr><td><code>expected_basis_poisha</code></td><td>BIGINT</td><td>NULL</td><td>Fee calculated on the expected basis (contributes to X_e).</td></tr>
+<tr><td><code>reported_basis_poisha</code></td><td>BIGINT</td><td>NULL</td><td>Fee recalculated on the reported basis (contributes to X_R). For a reported_collected COD fee base this is the contractual fee.</td></tr>
+<tr><td><code>reported_actual_poisha</code></td><td>BIGINT</td><td>NULL</td><td>Fee as reported on the statement line (contributes to X_r).</td></tr>
+<tr><td><code>included_tax_poisha</code></td><td>BIGINT</td><td>NULL</td><td>Breakdown only, never subtracted again. NOT NULL only when the rule states an included-tax formula and the rate; otherwise NULL while the gross fee still counts once.</td></tr>
+<tr><td><code>data_quality_state</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('present_valid','explicit_zero','column_absent','blank','invalid','rule_unknown','contract_missing')</td></tr>
+<tr><td><code>rounding_note</code></td><td>TEXT</td><td>NULL</td><td>Records that half-up rounding was applied per line and the unrounded basis where that aids review. No floating-point value is stored.</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Indexes: (merchant_id, result_id). A result's X_e, X_R and X_r must equal the sum of its fee lines in the matching basis, or be NULL when any contributing line is NULL - verified by the test suite, and by a deferred consistency check in the run-completion transaction.</p>
+<h4>reconciliation_findings - one independent finding raised by one result. Tenant-owned. RLS enforced. Append-only.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (result_id, finding_code)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>run_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to reconciliation_runs (denormalised for work-queue queries)</td></tr>
+<tr><td><code>result_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to reconciliation_results</td></tr>
+<tr><td><code>category</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('financial','data_quality')</td></tr>
+<tr><td><code>finding_type</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('collection','fee_tax','statement_arithmetic','conditional_payout','scenario','data_quality')</td></tr>
+<tr><td><code>finding_code</code></td><td>TEXT</td><td>NOT NULL</td><td>Stable codes including UNDER_COLLECTION, OVER_COLLECTION, FEE_VARIANCE, STATEMENT_INCONSISTENT, CONDITIONAL_PAYOUT_VARIANCE, SCENARIO_VARIANCE, DQ_MISSING_CONTRACT, DQ_COLUMN_ABSENT, DQ_VALUE_BLANK, DQ_VALUE_INVALID, DQ_AMBIGUOUS_MATCH, DQ_DUPLICATE_TRACKING, DQ_MISSING_OUTCOME.</td></tr>
+<tr><td><code>amount_poisha</code></td><td>BIGINT</td><td>NULL</td><td>The gross amount for this finding alone. NULL for data-quality findings with no amount. Findings are never summed into a single loss figure by the database or by a view.</td></tr>
+<tr><td><code>is_within_tolerance</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>DEFAULT false. Judged against the run's recorded tolerance.</td></tr>
+<tr><td><code>explanation_en</code></td><td>TEXT</td><td>NOT NULL</td><td>Plain-English explanation with the numbers and their working.</td></tr>
+<tr><td><code>explanation_bn</code></td><td>TEXT</td><td>NULL</td><td>Short Bangla explanation for financial statuses and money terms, per the approved UI convention.</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Indexes: (merchant_id, run_id, category), (merchant_id, finding_code), partial index on data-quality findings for the review queue. No column on this table, and no view, may label a finding a "confirmed loss": an unexplained difference is stored as a variance with its code, nothing more.</p>
+<h3>C.6 Settlement</h3>
+<h4>settlement_batches - the payout expected from one courier account for one period, against which bank receipts are checked. Tenant-owned. RLS enforced.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>merchant_courier_account_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to merchant_courier_accounts</td></tr>
+<tr><td><code>run_id</code></td><td>UUID</td><td>NULL</td><td>Composite FK to reconciliation_runs, where the batch derives from a run.</td></tr>
+<tr><td><code>period_start / period_end</code></td><td>DATE</td><td>NULL</td><td>CHECK period_end is NULL or &gt;= period_start</td></tr>
+<tr><td><code>expected_batch_payout_poisha</code></td><td>BIGINT</td><td>NULL</td><td>The batch-level amount expected from courier-reported figures. NULL when it cannot be calculated exactly. Kept separate from any bank-confirmed amount.</td></tr>
+<tr><td><code>allocated_total_poisha</code></td><td>BIGINT</td><td>NULL</td><td>Sum of allocations, maintained in the allocation transaction. NULL until at least one allocation exists.</td></tr>
+<tr><td><code>bank_variance_poisha</code></td><td>BIGINT</td><td>NULL</td><td><strong>Must remain NULL</strong> until every linked receipt is explicitly marked complete AND the batch is fully allocated. Enforced by the write path and by a CHECK pattern described in Section D; never defaulted.</td></tr>
+<tr><td><code>allocation_status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('unallocated','partially_allocated','fully_allocated'); DEFAULT 'unallocated'</td></tr>
+<tr><td><code>bank_status</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('no_receipt','partial_receipt','receipt_complete_unallocated','fully_reconciled'); DEFAULT 'no_receipt'</td></tr>
+<tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: Mutable for status and allocation totals; expected amounts, once a receipt is allocated against them, change only by creating a corrected batch that supersedes this one. Indexes: (merchant_id, merchant_courier_account_id, period_start), (merchant_id, allocation_status).</p>
+
+<h4>bank_receipts - money the merchant confirms was received, recorded as manual bank-confirmation evidence. Tenant-owned. RLS enforced.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (merchant_id, id)</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>settlement_batch_id</code></td><td>UUID</td><td>NULL</td><td>Composite FK to settlement_batches. NULL allows a receipt to be recorded before its batch is identified; it then cannot contribute to any variance.</td></tr>
+<tr><td><code>amount_poisha</code></td><td>BIGINT</td><td>NOT NULL</td><td>CHECK &gt; 0. A receipt is money received; a correction is a new receipt record with a note, not a negative edit.</td></tr>
+<tr><td><code>received_on</code></td><td>DATE</td><td>NULL</td><td>-</td></tr>
+<tr><td><code>receipt_ref_label</code></td><td>TEXT</td><td>NULL</td><td>Merchant-supplied label only. <strong>No bank account number column exists on this table, and none may be added.</strong> See Conflict 1 in Section A and OD-09.</td></tr>
+<tr><td><code>is_complete</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>DEFAULT false. Set only by an explicit merchant action stating this receipt is the complete receipt for its purpose. Never inferred from amounts matching.</td></tr>
+<tr><td><code>marked_complete_by_user_id / _at</code></td><td>UUID / TIMESTAMPTZ</td><td>NULL</td><td>Required together when is_complete is true.</td></tr>
+<tr><td><code>evidence_note</code></td><td>TEXT</td><td>NULL</td><td>How the merchant confirmed receipt. Kept separate from courier-reported payout at every level.</td></tr>
+<tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Multiple partial receipts per batch are expected and supported. A partial receipt is a status, not a discrepancy. Indexes: (merchant_id, settlement_batch_id), (merchant_id, received_on).</p>
+<h4>settlement_allocations - how much of one receipt is allocated to one settlement batch. Tenant-owned. RLS enforced. Append-only; a reallocation reverses and re-creates.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK; UK part of (bank_receipt_id, settlement_batch_id, created_at) pattern - in practice uniqueness is on the active allocation pair, below</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id)</td></tr>
+<tr><td><code>settlement_batch_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to settlement_batches</td></tr>
+<tr><td><code>bank_receipt_id</code></td><td>UUID</td><td>NOT NULL</td><td>Composite FK to bank_receipts</td></tr>
+<tr><td><code>allocated_poisha</code></td><td>BIGINT</td><td>NOT NULL</td><td>CHECK &gt; 0</td></tr>
+<tr><td><code>is_active</code></td><td>BOOLEAN</td><td>NOT NULL</td><td>DEFAULT true. Reversal sets a compensating row rather than deleting.</td></tr>
+<tr><td><code>reverses_allocation_id</code></td><td>UUID</td><td>NULL</td><td>Self-referencing composite FK for reversal rows.</td></tr>
+<tr><td><code>created_by_user_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Rules: the sum of active allocations from one receipt must never exceed that receipt's amount, and the sum into one batch defines its allocated total. PostgreSQL cannot express a cross-row sum as a plain CHECK, so this is enforced in the allocation transaction with row locks, plus a deferred constraint trigger reviewed as part of implementation - flagged here so no reviewer assumes a CHECK exists. Allocations are never spread pro-rata automatically and never created by the system from an amount match alone. Indexes: (merchant_id, settlement_batch_id), (merchant_id, bank_receipt_id).</p>
+<h3>C.7 Audit, settings and supporting records</h3>
+<h4>workspace_settings - typed per-workspace controls. Tenant-owned. RLS enforced. One row per merchant.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id); UK - strictly one-to-one</td></tr>
+<tr><td><code>tolerance_poisha</code></td><td>BIGINT</td><td>NOT NULL</td><td>CHECK &gt;= 0; DEFAULT 0. Settable only by Owner or Admin. The gross difference is always stored and shown regardless of tolerance.</td></tr>
+<tr><td><code>locale</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('en','en_bn'); DEFAULT 'en_bn' - English UI with Bangla explanations for financial statuses.</td></tr>
+<tr><td><code>updated_by_user_id</code></td><td>UUID</td><td>NULL</td><td>FK to users(id)</td></tr>
+<tr><td><code>created_at / updated_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: Mutable, audited. A tolerance change affects future runs only, because each run copies the tolerance it used.</p>
+<h4>audit_logs - append-only record of consequential actions. Tenant-owned where a merchant context exists. RLS enforced for reads.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NULL</td><td>FK to merchants(id). NULL only for pre-workspace identity events such as sign-in.</td></tr>
+<tr><td><code>actor_user_id</code></td><td>UUID</td><td>NULL</td><td>FK to users(id). NULL for system actions, which must then set actor_type.</td></tr>
+<tr><td><code>actor_type</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('user','system')</td></tr>
+<tr><td><code>action</code></td><td>TEXT</td><td>NOT NULL</td><td>Closed vocabulary, for example rule_version.activated, match.confirmed, receipt.marked_complete, tolerance.changed, workspace.closed.</td></tr>
+<tr><td><code>entity_table</code></td><td>TEXT</td><td>NULL</td><td>Name of the affected table. <strong>Not a foreign key</strong> - this is the one deliberate exception, because audit must survive deletion of the rows it describes. Compensating rule: entity_id is recorded with a snapshot of the identifying fields in detail.</td></tr>
+<tr><td><code>entity_id</code></td><td>UUID</td><td>NULL</td><td>Unenforced reference; see above.</td></tr>
+<tr><td><code>detail</code></td><td>JSONB</td><td>NOT NULL</td><td>Before/after values for the changed fields. Must never contain a bank account number, a raw credential or a full uploaded file.</td></tr>
+<tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>DEFAULT now()</td></tr>
+</table>
+<p class="small">Immutability: Append-only. The runtime role has INSERT and SELECT only. Indexes: (merchant_id, created_at), (merchant_id, action, created_at), (actor_user_id, created_at).</p>
+<h4>idempotency_keys - one stored key per retried operation, scoped to a merchant. Tenant-owned. RLS enforced.</h4>
+<table class="tblspec">
+<tr><th style="width:38mm">Column</th><th style="width:32mm">Type</th><th style="width:13mm">Null</th><th>Key / constraints</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>NOT NULL</td><td>PK</td></tr>
+<tr><td><code>merchant_id</code></td><td>UUID</td><td>NOT NULL</td><td>FK to merchants(id); UK part of (merchant_id, key, operation)</td></tr>
+<tr><td><code>key</code></td><td>TEXT</td><td>NOT NULL</td><td>Client-supplied key.</td></tr>
+<tr><td><code>operation</code></td><td>TEXT</td><td>NOT NULL</td><td>CHECK in ('import.create','run.create','receipt.create','allocation.create')</td></tr>
+<tr><td><code>result_ref</code></td><td>TEXT</td><td>NULL</td><td>Identifier of the object created by the first successful call, returned on replay.</td></tr>
+<tr><td><code>request_hash</code></td><td>TEXT</td><td>NOT NULL</td><td>A replay with the same key but a different request hash is an error, not a silent success.</td></tr>
+<tr><td><code>created_at / expires_at</code></td><td>TIMESTAMPTZ</td><td>NOT NULL</td><td>Expiry window is OD-13.</td></tr>
+</table>
+
+<h2>D. Financial Data Integrity</h2>
+<h3>D.1 Monetary storage and rounding</h3>
+<p>All money is <code>BIGINT</code> integer poisha. The database stores only integers; no financial calculation in SQL, in the ORM or in the engine may pass through a floating-point type. Percentages and rates are stored as integer basis points (<code>cod_fee_rate_bps</code>, <code>vat_rate_bps</code>), so a fee calculation is integer multiplication followed by a single defined rounding step.</p>
+<p>Rounding is <strong>half-up, per fee line</strong>, exactly as approved: each fee line is rounded once, on its own, and the rounded line values are then summed into <code>X_e</code>, <code>X_R</code> and <code>X_r</code>. Totals are never rounded again, and a total is never produced by rounding an unrounded sum. <code>reconciliation_fee_lines</code> exists so this can be proved line by line for any result.</p>
+<h3>D.2 The approved formulas, unchanged</h3>
+<pre>E  = expected collectible COD (from confirmed shipment outcome, Section C shipments)
+R  = courier-reported collected COD          P_r = courier-reported payout
+X_e = expected-basis deductions              X_r = deductions actually reported
+X_R = deductions recalculated on the reported basis under confirmed rules
+
+C       = R - E
+delta   = X_R - X_e
+V_R     = X_r - X_R
+S       = P_r - (R - X_r)
+V_cond  = P_r - P_cond
+V_total = P_r - P_e
+
+Identities that must hold whenever every term is present:
+V_total = C - delta - V_R + S
+V_cond  = S - V_R
+
+For a cod_minus_delivery_fee base:
+F_R = round_half_up( max(R - D_c, 0) x rate )
+where D_c is the merchant-confirmed contractual delivery fee only.</pre>
+<p>Expected, courier-reported and bank-confirmed amounts are three different kinds of fact and are stored in three different places: expected values on orders, shipments and results; reported values on statement lines and results; bank-confirmed values on bank receipts and allocations. No column, view or report may substitute one for another, and no view may present a combined figure that hides which kind it is.</p>
+<h3>D.3 NULL versus verified zero</h3>
+<table>
+<tr><th style="width:34mm">Situation in the CSV</th><th style="width:30mm">Stored state</th><th>Stored value and effect</th></tr>
+<tr><td>Fee column does not exist</td><td><code>column_absent</code></td><td>Value NULL for every row in the batch. The affected totals (<code>X_r</code>, and anything derived from them) are NULL, the result is <code>needs_review</code>, and a <code>DQ_COLUMN_ABSENT</code> finding is raised.</td></tr>
+<tr><td>Column exists, row is blank</td><td><code>blank</code></td><td>Value NULL for that row only. Same downstream effect as absent, scoped to that shipment.</td></tr>
+<tr><td>Fee explicitly reported as zero</td><td><code>explicit_zero</code></td><td>Value 0, verified. The fee counts as 0 in <code>X_r</code> and totals remain calculable.</td></tr>
+<tr><td>Value invalid or unparsable</td><td><code>invalid</code></td><td>Value NULL, raw string preserved on the import row and the import error. Never parsed leniently into a number.</td></tr>
+<tr><td>Value present and valid</td><td><code>present_valid</code></td><td>Value is the parsed integer poisha, greater than 0.</td></tr>
+</table>
+<p>Three database rules protect this everywhere, not only in the parser: no money column has a DEFAULT; the state-to-value CHECK in Section C ties each state to its required nullability; and reporting queries must not use <code>COALESCE(amount, 0)</code> on any financial column - a rule enforced in code review and by the tests in Section I, because SQL cannot police its own future queries.</p>
+<h3>D.4 The contractual delivery fee: D_c, D_e and D_r stay separate</h3>
+<p>Three different delivery fees exist and are stored in three different places. <code>D_e</code>, the expected delivery fee, comes from the expected-basis fee line. <code>D_r</code>, the courier-reported delivery fee, is <code>statement_lines.reported_delivery_fee_poisha</code>. <code>D_c</code>, the contractual delivery fee, is <code>courier_rule_versions.contractual_delivery_fee_poisha</code> and is the only value that may be used as the subtractor in a <code>cod_minus_delivery_fee</code> base.</p>
+<div class="callout"><strong>P0 patch rule, carried into M1 unchanged.</strong> D_c counts as contractual only when <code>dc_confirmed</code> is explicitly true AND <code>dc_evidence_ref</code> is non-empty. A D_c value on its own, a missing flag, a false flag, or a missing evidence reference each produce <code>DQ_MISSING_CONTRACT</code>, set the affected fees and payouts (<code>F_e</code>, <code>F_R</code>, <code>P_e</code>, <code>P_cond</code>) to NULL and mark the result <code>needs_review</code>. There is no fallback to D_e or D_r, in the engine, in SQL or in a report.</div>
+<p>Worked synthetic illustration (fictional numbers, no real courier rate): expected delivery fee D_e = 6,000 poisha, reported delivery fee D_r = 6,500 poisha, confirmed contractual fee D_c = 6,000 poisha with evidence, reported collection R = 100,000 poisha, COD fee rate 1 percent on a <code>cod_minus_delivery_fee</code> base. Then F_R = round(max(100,000 - 6,000, 0) x 1 percent) = 940 poisha. Using D_r instead would give 935 poisha and would be wrong by construction, not by arithmetic - which is why the three values may never be substituted for one another. If D_c were unconfirmed, F_R would be NULL, not 935 or 940.</p>
+
+<h3>D.5 Scenario variance is not a contractual finding</h3>
+<p>For a <code>reported_collected</code> COD fee base, the contractual fee is the reported-basis fee and the contractual payout comparison is against <code>P_cond</code>. <code>V_total</code> compares the reported payout with a hypothetical expected-collection scenario (<code>P_e</code>); it is information, not a contractual judgement.</p>
+<table>
+<tr><th style="width:28mm">Measure</th><th>What it judges</th><th style="width:52mm">What it may affect</th></tr>
+<tr><td><code>C</code></td><td>Collection: reported collection against expected collectible COD.</td><td>An independent collection finding. On its own it makes the overall status <code>open</code>, never <code>mismatch</code>.</td></tr>
+<tr><td><code>V_R</code></td><td>Reported-basis fee and tax variance: what was charged against what the confirmed rules recalculate on the reported basis.</td><td>A fee/tax finding; contributes to contractual mismatch.</td></tr>
+<tr><td><code>S</code></td><td>Whether the statement is internally consistent: does the reported payout equal reported collection minus reported deductions?</td><td>A statement-arithmetic finding; contributes to mismatch. Never forced to zero.</td></tr>
+<tr><td><code>V_cond</code></td><td>The contractual payout comparison.</td><td>Determines contractual payout status, and therefore mismatch.</td></tr>
+<tr><td><code>V_total</code></td><td>Scenario comparison only, for a reported_collected base.</td><td>A scenario finding, always listed, which can never on its own trigger a contractual payout mismatch.</td></tr>
+</table>
+<h3>D.6 Findings coexist; statuses are three, not one</h3>
+<p>Every discrepancy becomes its own row in <code>reconciliation_findings</code>, with its own gross amount. Findings are never netted against each other, never summed into a single loss, and never hidden because another finding exists. Derived variances (<code>V_cond</code>, <code>V_total</code>) and their underlying components (<code>C</code>, <code>V_R</code>, <code>S</code>) are displayed as an explanation chain, not added together as if they were independent losses.</p>
+<table>
+<tr><th style="width:44mm">Combination on one shipment</th><th style="width:30mm">Contractual payout status</th><th style="width:28mm">Data-quality status</th><th>Overall status</th></tr>
+<tr><td>Nothing outside tolerance; all data present</td><td>matched</td><td>ok</td><td><code>matched</code></td></tr>
+<tr><td>All findings non-zero but within tolerance</td><td>matched_with_tolerance</td><td>ok</td><td><code>matched_with_tolerance</code> - gross amounts still shown</td></tr>
+<tr><td>Under-collection only (C non-zero); V_cond = 0</td><td>matched</td><td>ok</td><td><code>open</code> - an open collection finding, not a payout mismatch</td></tr>
+<tr><td>Fee/tax variance, or S non-zero, or V_cond non-zero, outside tolerance</td><td>mismatch</td><td>ok</td><td><code>mismatch</code></td></tr>
+<tr><td>Scenario V_total non-zero only, V_cond = 0</td><td>matched</td><td>ok</td><td><code>matched</code>, with the scenario finding still listed (or <code>open</code> if a collection finding also exists)</td></tr>
+<tr><td>Any required value NULL, missing contract, ambiguous match, or missing outcome - with or without financial findings</td><td>not_calculable or as calculated</td><td>needs_review</td><td><code>needs_review</code> - and every financial finding that could be calculated is still stored and shown</td></tr>
+</table>
+<p>The precedence is deterministic and narrow: <code>needs_review</code> outranks the other overall values because an incomplete picture must not be presented as settled; <code>mismatch</code> next, driven only by fee/tax, statement or contractual payout findings; <code>open</code> next, for collection-only discrepancy; then <code>matched_with_tolerance</code>; then <code>matched</code>. Precedence decides only the single overall label. It never deletes, merges or downgrades a finding, and the other two statuses are always stored alongside it.</p>
+<h3>D.7 Matching precedence</h3>
+<ol>
+<li><strong>Strong match:</strong> same workspace, same courier account, and a unique normalised tracking ID match between statement line and shipment. This is the only automatic match.</li>
+<li><strong>Duplicate or repeated tracking:</strong> if the normalised tracking ID is not unique on either side, the line is ambiguous. It stays open for human confirmation; no automatic choice is made.</li>
+<li><strong>Weak fallback:</strong> blank tracking ID, an exact merchant order ID matching exactly one shipment, the same courier, and a statement date within 7 days after the shipment date where both dates exist, with no other candidate. A weak match is a proposal in <code>shipment_match_candidates</code> and takes effect only on human confirmation.</li>
+<li><strong>Never:</strong> no match is made on amount alone, in any code path. There is no amount value in the <code>match_basis</code> CHECK list, so the database itself rejects such a record.</li>
+</ol>
+<p>Duplicate, unmatched and settlement-level lines are preserved as rows. They are never summed, merged or spread pro-rata across shipments.</p>
+<h3>D.8 Snapshots, rule versioning and evidence provenance</h3>
+<ul>
+<li><strong>Run snapshot.</strong> A run copies the rule definition, rule version number and content hash, the mapping snapshot, the template version, the tolerance, the engine version, and the identifiers and hashes of every input line and shipment. A result can therefore be explained years later without reference to any live, editable row.</li>
+<li><strong>Result snapshot.</strong> Results copy E, R and P_r rather than pointing back at mutable shipment or statement values for their amounts. The foreign keys remain for navigation; the amounts on the result are the historical fact.</li>
+<li><strong>Rule versioning.</strong> Rule versions are immutable once active. A correction creates a new version, supersedes the old one, and affects only future runs. No run is ever recalculated in place; a recalculation is a new run.</li>
+<li><strong>Evidence provenance.</strong> Every active contractual value traces to a <code>courier_rule_evidence</code> row naming its type, reference, confirming user and time. Values with no evidence stay NULL. Public pricing pages are not evidence.</li>
+<li><strong>VAT and included tax.</strong> An included-tax amount is a breakdown of a fee that has already been counted once; it is never subtracted again. The breakdown is calculated only when the rule states an included-tax formula (<code>rate_on_net</code> or <code>rate_on_gross</code>) and the rate. If the mode is unknown, an exact payout cannot be claimed; if the mode is known to be included but only the rate is unknown, the gross fee still counts once and only the breakdown is NULL.</li>
+</ul>
+<h3>D.9 Reconciliation immutability and historical referential integrity</h3>
+<p>Immutability in M1 is enforced at three levels, because the P0 prototype's application-level insert-only store is not sufficient for production. First, privileges: the runtime role has no UPDATE or DELETE grant on runs, results, findings, fee lines, statement lines, import rows or evidence. Second, RLS: no UPDATE or DELETE policy is defined for those tables, so even a granted statement would return no rows. Third, triggers or rules are not required if the first two levels are applied, and adding them is a defence-in-depth option for the implementation review, not a substitute for correct grants.</p>
+<p>Historical integrity also constrains deletes elsewhere: foreign keys from financial history use <code>ON DELETE RESTRICT</code>. A shipment, order, rule version, template or file object that is referenced by a run cannot be deleted. Workspace closure therefore anonymises and archives rather than cascading deletes through financial tables (Section G).</p>
+<h3>D.10 Settlement and partial receipts</h3>
+<p>A settlement batch states what is expected from courier-reported figures. Bank receipts state what the merchant confirms actually arrived. Allocations connect the two, explicitly, by a human or by a deterministic rule the merchant can inspect - never by an amount match alone, and never pro-rata.</p>
+<ul>
+<li>Multiple partial receipts against one batch are normal. Each is recorded with its own amount and date.</li>
+<li><code>bank_variance_poisha</code> stays NULL while any linked receipt is not explicitly marked complete, or while the batch is not fully allocated. A partial receipt produces the status <code>partial_receipt</code>, not a variance and not a discrepancy.</li>
+<li>Only when every linked receipt is complete and the batch is fully allocated may the variance be calculated, as allocated bank-confirmed total minus expected batch payout, and stored. Before that moment any number shown would be an invention.</li>
+<li>Returned shipments follow the same separation: an expected return fee, or an amount showing as owed at batch level, is not evidence that money moved. Only a receipt is evidence of settlement.</li>
+</ul>
+
+<h2>E. PostgreSQL RLS Design</h2>
+<p>Tenant isolation rests on five things working together. Any one of them on its own - including the presence of <code>merchant_id</code> - is not isolation.</p>
+<ol>
+<li>Every tenant-owned table carries <code>merchant_id</code> and has RLS enabled and forced.</li>
+<li>The application connects as a non-superuser role that does not own the tables and has no <code>BYPASSRLS</code> attribute.</li>
+<li>Every transaction sets the tenant context as a transaction-local setting before it touches data.</li>
+<li>Policies fail closed: with no context set, they match no rows for reads and reject writes.</li>
+<li>Composite tenant foreign keys make cross-tenant relationships impossible even for a privileged writer.</li>
+</ol>
+<div class="callout"><strong>All SQL in this section is illustrative and marked ADAPT.</strong> Role names, schema names and grant lists must be adapted to the chosen managed PostgreSQL service, reviewed by a second engineer, and exercised by the Section I tests before any production use. Do not run it unchanged against a live database.</div>
+<h3>E.1 Roles: migration owner versus runtime</h3>
+<pre>-- ADAPT: run as the database administrator during provisioning only.
+-- The migration role owns the schema and runs Alembic.
+CREATE ROLE courierledger_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
+-- The runtime role owns nothing, cannot bypass RLS, and is the only
+-- role the application is ever allowed to connect as.
+CREATE ROLE courierledger_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+  NOBYPASSRLS;
+-- Defence in depth: assert these attributes in the Section I tests.
+-- A role with BYPASSRLS, SUPERUSER, or table ownership silently
+-- defeats every policy below.</pre>
+<h3>E.2 Tenant context: transaction-local, set on every transaction</h3>
+<pre>-- ADAPT: called by the application at the start of EVERY transaction,
+-- after authentication has resolved the active workspace.
+-- The third argument (true) makes the setting transaction-local:
+-- it disappears at COMMIT or ROLLBACK and cannot leak to the next
+-- transaction that reuses the pooled connection.
+SELECT set_config('app.merchant_id', :merchant_id, true);
+SELECT set_config('app.user_id',     :user_id,     true);
+
+-- Helper used inside policies. Returns NULL when unset or malformed,
+-- which makes every policy below fail closed.
+CREATE OR REPLACE FUNCTION app_current_merchant_id() RETURNS uuid
+LANGUAGE sql STABLE AS $$
+  SELECT NULLIF(current_setting('app.merchant_id', true), '')::uuid
+$$;</pre>
+<p>Two rules are non-negotiable. First, <code>SET</code> without <code>LOCAL</code>, and session-level <code>set_config(..., false)</code>, are forbidden in application code: with connection pooling they attach the tenant to the connection, and the next request on that connection inherits it. Second, the context is set inside the transaction that does the work, never in a separate earlier transaction on the same connection.</p>
+<h3>E.3 Enablement and policies</h3>
+<pre>-- ADAPT: repeat for every tenant-owned table.
+ALTER TABLE shipments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shipments FORCE ROW LEVEL SECURITY;
+-- FORCE matters: without it, the table owner is exempt from policies.
+
+CREATE POLICY shipments_select ON shipments
+  FOR SELECT TO courierledger_app
+  USING (merchant_id = app_current_merchant_id());
+
+CREATE POLICY shipments_insert ON shipments
+  FOR INSERT TO courierledger_app
+  WITH CHECK (merchant_id = app_current_merchant_id());
+
+CREATE POLICY shipments_update ON shipments
+  FOR UPDATE TO courierledger_app
+  USING      (merchant_id = app_current_merchant_id())
+  WITH CHECK (merchant_id = app_current_merchant_id());
+-- The WITH CHECK on UPDATE prevents moving a row to another tenant.
+
+CREATE POLICY shipments_delete ON shipments
+  FOR DELETE TO courierledger_app
+  USING (merchant_id = app_current_merchant_id());</pre>
+<p>For append-only tables (runs, results, findings, fee lines, statement lines, import rows, import errors, evidence, audit logs) there is deliberately <strong>no UPDATE policy and no DELETE policy</strong>, and no corresponding grant. The absence is the control: an UPDATE from the runtime role affects zero rows and a DELETE is denied, which the tests assert explicitly. For <code>merchants</code> itself, the SELECT policy is membership-based - a user may see a workspace only where an active membership row links them - and workspace creation runs through a controlled function rather than a general INSERT policy. For <code>users</code> and <code>couriers</code>, which are not merchant-scoped, access is controlled by grants and application authorisation, and that difference is stated rather than disguised as an RLS policy.</p>
+<h3>E.4 Grants: least privilege per table class</h3>
+<pre>-- ADAPT: generate per table from the classification in Section C.
+-- Mutable tenant tables:
+GRANT SELECT, INSERT, UPDATE, DELETE ON shipments
+  TO courierledger_app;
+-- Append-only financial history:
+GRANT SELECT, INSERT ON reconciliation_runs,
+  reconciliation_results, reconciliation_fee_lines,
+  reconciliation_findings, statement_lines
+  TO courierledger_app;
+-- Reference data:
+GRANT SELECT ON couriers TO courierledger_app;
+-- No grant of any kind on any table to PUBLIC.
+-- No TRUNCATE, no REFERENCES, no TRIGGER for the runtime role.</pre>
+<p>The single permitted exception is the run status transition (<code>running</code> to <code>completed</code> or <code>failed</code>, plus <code>completed_at</code>). Implement it either as a column-level UPDATE grant on those two columns with an UPDATE policy restricted to them in effect, or as a <code>SECURITY DEFINER</code> function owned by the migrator that validates the run's merchant against the caller's context. The function route is recommended: it keeps the table grant clean and gives one auditable place for the transition. Either way, no other column of a run may ever be updated.</p>
+<h3>E.5 Missing context, pooling and bypass prevention</h3>
+<table>
+<tr><th style="width:46mm">Situation</th><th>Required behaviour</th></tr>
+<tr><td>Tenant context not set</td><td><code>app_current_merchant_id()</code> returns NULL. SELECT returns zero rows, INSERT fails its WITH CHECK, UPDATE and DELETE affect zero rows. The application treats zero rows on an expected read as an error and logs it; it never retries without context or falls back to an unscoped query.</td></tr>
+<tr><td>Context set to a malformed value</td><td>The cast in the helper fails the transaction. That is intentional: a malformed context is a programming error and must be loud, not a silent empty result. The application validates the UUID before setting it.</td></tr>
+<tr><td>Pooled connection reused by another tenant</td><td>Safe only because the setting is transaction-local. Additionally, the pool must be configured in transaction mode if an external pooler is used (for example PgBouncer transaction pooling), and the application must never rely on session state, temporary tables or prepared-statement side effects carrying tenant information.</td></tr>
+<tr><td>Background or scheduled work</td><td>Jobs have no ambient tenant. Each job item sets the context for its own merchant inside its own transaction. A job that processes several merchants uses one transaction per merchant, never one transaction with a changing context and cached rows.</td></tr>
+<tr><td>Administrative and support access</td><td>No standing bypass role for support. Break-glass access, if ever approved, is a separate audited procedure outside the application - it is not a policy in this design, not a flag column, and not a second application role.</td></tr>
+<tr><td>Migrations</td><td>Alembic connects as the migrator, which owns the tables. Because FORCE is enabled, the owner is still subject to policies for row operations; migrations that must touch rows across tenants do so in DDL-focused migrations or with an explicitly reviewed, temporary policy change recorded in the migration itself. Data migrations must name the tenant they affect.</td></tr>
+</table>
+<p>A further guard: application code must never build a query against a tenant table without going through the tenant-aware repository layer in Section H, and the test suite includes a check that every tenant-owned table has RLS enabled, forced, and at least a SELECT and INSERT policy - so a future migration that adds a table and forgets its policies fails the build instead of shipping an open table.</p>
+
+<h2>F. Indexing and Performance</h2>
+<p>The indexing rule for M1 is simple: index the tenant-first query patterns the product actually runs, and nothing speculative. Every tenant query begins with <code>merchant_id</code>, so every useful index begins with it too - which also makes each index serve the RLS policy predicate.</p>
+<h3>F.1 Query patterns and their indexes</h3>
+<table>
+<tr><th style="width:56mm">Query pattern</th><th>Index</th></tr>
+<tr><td>Results for one run, paged</td><td><code>reconciliation_results (merchant_id, run_id, id)</code></td></tr>
+<tr><td>Review queue: open, mismatch and needs_review results</td><td>Partial: <code>reconciliation_results (merchant_id, overall_status, created_at) WHERE overall_status IN ('open','mismatch','needs_review')</code></td></tr>
+<tr><td>Findings for a result; findings by code for a merchant</td><td><code>reconciliation_findings (merchant_id, result_id)</code>; <code>(merchant_id, finding_code, created_at)</code></td></tr>
+<tr><td>Shipment lookup by tracking ID during import</td><td><code>shipments (merchant_id, tracking_id_normalised)</code> - non-unique on purpose</td></tr>
+<tr><td>Statement lines needing matching</td><td>Partial: <code>statement_lines (merchant_id, import_batch_id) WHERE match_status IN ('unmatched','ambiguous')</code></td></tr>
+<tr><td>Import rows for a batch, in file order</td><td>Unique <code>import_rows (merchant_id, import_batch_id, row_number)</code> as the constraint; it doubles as the access index</td></tr>
+<tr><td>One active COD-bearing shipment per order</td><td>Partial unique <code>shipments (merchant_id, order_id) WHERE is_cod_bearing AND NOT is_superseded</code></td></tr>
+<tr><td>Only one confirmed match per statement line</td><td>Partial unique <code>shipment_match_candidates (statement_line_id) WHERE decision = 'confirmed'</code></td></tr>
+<tr><td>Duplicate file detection</td><td>Unique <code>file_objects (merchant_id, sha256)</code></td></tr>
+<tr><td>Determinism and duplicate-run detection</td><td>Unique <code>reconciliation_runs (merchant_id, run_hash)</code></td></tr>
+<tr><td>Settlement work list</td><td><code>settlement_batches (merchant_id, allocation_status, period_start)</code>; <code>bank_receipts (merchant_id, settlement_batch_id)</code>; <code>settlement_allocations (merchant_id, bank_receipt_id)</code></td></tr>
+<tr><td>Audit review</td><td><code>audit_logs (merchant_id, created_at)</code>; <code>(merchant_id, action, created_at)</code></td></tr>
+</table>
+<h3>F.2 What is deliberately not indexed or built</h3>
+<ul>
+<li>No full-text index, no trigram index and no JSONB GIN index in M1. <code>raw_values</code> and snapshot columns are read by key, not searched. If support later needs raw-row search, that is a measured addition, not a guess now.</li>
+<li>No partitioning in M1. <code>import_rows</code> and <code>audit_logs</code> are the first candidates if row counts ever justify it, and both are already keyed by merchant and time in a way that would allow it later.</li>
+<li>No materialised totals. Batch and dashboard totals are computed from fee lines and results, or maintained in the same transaction that writes allocations. A cached total that can drift from its lines is a financial risk, not a performance feature.</li>
+<li>No index on amount columns. Nothing legitimate searches by amount, and an amount index would invite the amount-based matching this design forbids.</li>
+</ul>
+<h3>F.3 Scaling notes</h3>
+<p>SME statement volumes are modest: the design target is correctness under concurrent imports by one merchant and steady use by many small merchants, not bulk throughput. The realistic growth pressures are <code>import_rows</code> volume, audit volume and the number of tenants sharing one database. The responses, in order, are: retention and purging of raw file bytes (Section G), archival of audit logs, and only then partitioning or a per-tenant schema discussion - which would be a new architecture decision, not an optimisation. Any query that cannot use a tenant-first index should be treated as a bug.</p>
+<h2>G. Data Lifecycle and Retention</h2>
+<div class="callout"><strong>No retention period in this section is a legal claim.</strong> Every duration below is a proposed operational default marked <span class="tag">OPEN - POLICY AND LEGAL REVIEW REQUIRED</span>. Bangladeshi legal, tax and accounting advice must be taken before any period is adopted, and the adopted periods must be recorded as a policy decision separate from this specification.</div>
+<table>
+<tr><th style="width:34mm">Data</th><th>Proposed lifecycle</th></tr>
+<tr><td>Uploaded CSV files (object storage)</td><td>Retained while the import batch and its runs are retained, so a result can always be traced to its source file. Byte-level purge after workspace closure or after the adopted retention period, leaving <code>file_objects</code> metadata and hash in place so historical references still resolve. <span class="tag">OPEN - POLICY AND LEGAL REVIEW REQUIRED</span></td></tr>
+<tr><td>Raw import rows</td><td>Retained with their batch. They are the evidence for every normalised value and must not be deleted while the related runs exist. Any future archival moves them whole, with their batch, never selectively by row.</td></tr>
+<tr><td>Failed imports</td><td>Kept, with their errors, for the same period as successful imports. A failed import is diagnostic evidence; deleting failures would hide systematic template or statement problems. Batches that were uploaded and abandoned before mapping may be purged earlier under a housekeeping rule. <span class="tag">OPEN</span></td></tr>
+<tr><td>Reconciliation runs, results, findings, fee lines and snapshots</td><td>Never deleted in normal operation. Corrections create new runs. This history is the product's core evidence and its retention is a policy decision, not a storage optimisation. <span class="tag">OPEN - POLICY AND LEGAL REVIEW REQUIRED</span></td></tr>
+<tr><td>Audit logs</td><td>Append-only, retained at least as long as the financial history they describe. Archival to cold storage is acceptable; selective deletion is not. <span class="tag">OPEN - POLICY AND LEGAL REVIEW REQUIRED</span></td></tr>
+<tr><td>User sessions</td><td>Expired and revoked sessions purged on a short housekeeping cycle (proposed 30 days after expiry). <span class="tag">OPEN</span></td></tr>
+<tr><td>Idempotency keys</td><td>Purged after their expiry window (OD-13). They are operational records, not financial history.</td></tr>
+<tr><td>User deletion</td><td>Deleting a user removes their sign-in credentials and personal profile fields, and revokes their sessions and memberships. Their identity remains as an anonymised actor reference in audit logs and as <code>created_by</code> / <code>confirmed_by</code> attributions on financial records, because removing those would break provenance. The exact anonymisation form is a policy decision. <span class="tag">OPEN - POLICY AND LEGAL REVIEW REQUIRED</span></td></tr>
+<tr><td>Merchant workspace deletion</td><td>A two-stage process: closure (status <code>closing</code>, access revoked, exports offered to the owner) followed by erasure after the adopted retention and any legal hold. Erasure deletes personal data and stored file bytes, and anonymises merchant-identifying fields. Whether financial records themselves are then deleted or retained in anonymised form is the single most consequential open decision in this section and must not be decided by an engineer alone. <span class="tag">OPEN - POLICY AND LEGAL REVIEW REQUIRED</span></td></tr>
+<tr><td>Synthetic and demo data</td><td>Demo data is created only through the <code>source = 'demo_synthetic'</code> path, in clearly labelled demo workspaces, and is purged with the workspace. Synthetic data must never be mixed into a real merchant's workspace.</td></tr>
+</table>
+
+<h2>H. SQLAlchemy 2.x and Alembic Design</h2>
+<p>This section describes organisation and patterns only. It is not an application implementation.</p>
+<h3>H.1 Model organisation</h3>
+<ul>
+<li>One models module per domain module - identity, courier configuration, orders, import, reconciliation, settlement, audit - mirroring the modular monolith. A shared base module holds the declarative base, the tenant mixin and the timestamp mixin.</li>
+<li>The tenant mixin contributes <code>merchant_id</code>, the composite <code>UniqueConstraint(merchant_id, id)</code> and the standard tenant indexes, so a model cannot quietly omit them.</li>
+<li>Money columns are declared as <code>BigInteger</code> with the <code>_poisha</code> suffix enforced by a naming convention and a lint check over the metadata. Rate columns are <code>Integer</code> basis points. No model may declare a float type for a financial field.</li>
+<li>Enumerations are stored as TEXT with database CHECK constraints, not as PostgreSQL ENUM types: CHECK lists can be extended in an ordinary migration, while altering an ENUM type is more restrictive and harder to roll back. The Python side mirrors the same closed lists.</li>
+<li>JSONB is used only where the content is genuinely a snapshot or a raw record: <code>raw_values</code>, <code>mapping_snapshot</code>, <code>rule_snapshot</code>, <code>input_snapshot</code>, <code>rule_definition</code> and audit <code>detail</code>. Anything queried, joined, constrained or summed gets a real column.</li>
+</ul>
+<h3>H.2 Relationship strategy</h3>
+<ul>
+<li>Relationships are defined for navigation within a module. Cross-module access goes through the owning module's repository or service, not through a lazy relationship that can wander across the whole graph.</li>
+<li>No lazy loading in request paths. Queries state their joins and eager-loading explicitly, so the SQL a reviewer sees is the SQL that runs - which matters when the reviewer is checking that a query is tenant-scoped.</li>
+<li>Cascades are set to <code>RESTRICT</code> semantics at the database level for anything referenced by financial history. ORM-level cascade deletes are disabled for those models; deletion is a workflow, not a side effect of removing an object.</li>
+<li>Composite foreign keys are declared explicitly in the models so that the ORM and Alembic generate the same constraints the ERD shows. A model whose foreign key is single-column where Section C requires a composite is a review failure.</li>
+</ul>
+<h3>H.3 Tenant-aware repository pattern</h3>
+<ul>
+<li>There is no repository method that runs without a tenant. Every repository is constructed with a session that already carries a resolved tenant context object, and its methods take no optional merchant parameter - an optional parameter is exactly how an unscoped query gets written by accident.</li>
+<li>One unit-of-work boundary per request: open the transaction, set the tenant context with <code>set_config(..., true)</code>, do the work, commit. The context is never set outside a transaction and never reused across transactions.</li>
+<li>The ORM session must not use a connection that another request's transaction has touched without the context being reset by the transaction boundary itself. Session-level state, including any cached identity map, is per-request.</li>
+<li>Queries still filter by <code>merchant_id</code> explicitly even though RLS would filter anyway. Defence in depth is deliberate: the explicit predicate makes intent visible in review and keeps query plans on the tenant-first indexes, while RLS remains the guarantee if a predicate is ever missed.</li>
+<li>Admin or cross-tenant operations do not exist in the repository layer. If a genuine operational need appears, it is a separate reviewed tool with its own role and audit trail, not a boolean flag on a repository.</li>
+</ul>
+<h3>H.4 Alembic migration structure</h3>
+<ul>
+<li>Migrations connect as the migrator role, never as the runtime role. The runtime role is granted privileges by a dedicated, reviewed migration (or provisioning step), not by application startup code.</li>
+<li>One migration concern per revision: schema, then constraints, then indexes (built concurrently where the table may already hold data), then RLS enablement and policies, then grants. Separating RLS into its own revision makes the most safety-critical change reviewable on its own.</li>
+<li>Every migration that creates a tenant-owned table must, in the same revision, add its <code>merchant_id</code>, its composite unique constraint, its indexes and its RLS policies. A table that exists for one revision without policies is an open table.</li>
+<li>Autogenerate is a drafting aid only. Every autogenerated revision is reviewed line by line for CHECK constraints, partial indexes, composite keys and policy statements, none of which autogenerate reliably produces.</li>
+<li>Downgrades are written for structural migrations. Data and evidence migrations state plainly when they are irreversible rather than pretending a downgrade exists.</li>
+<li>A CI check inspects the final metadata and the live test database: every tenant table has RLS enabled and forced, the runtime role is neither owner nor superuser and has no BYPASSRLS, and no money column has a floating type or a zero default. That check is part of the Section I suite.</li>
+</ul>
+<h3>H.5 Database constraints complement application validation</h3>
+<p>The division of labour is deliberate. The database guarantees the invariants that must hold no matter who writes the row: types, nullability, state-to-value consistency, tenant consistency of relationships, uniqueness, one active COD-bearing shipment per order, one confirmed match per line, and the identities between a result's stored variances when all terms are present. The application handles everything that needs context the database does not have: whether evidence is genuinely merchant confirmation, whether a statement template matches a file, how findings are explained in English and Bangla, and how a user is guided to fix a problem. Where a rule can be expressed in both places, it is expressed in both, and a disagreement between them is a bug to fix, not a choice to make at runtime.</p>
+
+<h2>I. Database Testing Strategy</h2>
+<p>All scenarios run against a real PostgreSQL instance with the real migrations applied and with connections made as the runtime role, unless a scenario says otherwise. Tests that run as the migration owner prove nothing about RLS. Test data is synthetic only. Each scenario names its expected result; a scenario that cannot state its expected result is not yet a test.</p>
+<table>
+<tr><th style="width:10mm">ID</th><th style="width:44mm">Scenario</th><th>Setup and action, then expected result</th></tr>
+<tr><td>T-01</td><td>Cross-tenant read</td><td>Create merchants A and B with shipments in each. As the runtime role with context A, select all shipments. Expected: only A's rows. Repeat with an explicit <code>WHERE merchant_id = B</code> predicate. Expected: zero rows, not B's rows.</td></tr>
+<tr><td>T-02</td><td>Cross-tenant write and tenant move</td><td>With context A, attempt to insert a shipment with merchant B, and to update one of A's shipments to merchant B. Expected: insert rejected by WITH CHECK; update affects zero rows or is rejected. A's row still belongs to A.</td></tr>
+<tr><td>T-03</td><td>RLS enforcement on every tenant table</td><td>Enumerate tenant-owned tables from the catalog. For each, assert RLS is enabled and forced, and that SELECT and INSERT policies exist for the runtime role. Expected: no table missing. This test is the guard against a future migration shipping an open table.</td></tr>
+<tr><td>T-04</td><td>Missing tenant context</td><td>Open a transaction as the runtime role, set no context, and attempt select, insert, update and delete on a tenant table. Expected: select returns zero rows, insert fails, update and delete affect zero rows. The application-level test asserts this is surfaced as an error, not as an empty list presented to a user.</td></tr>
+<tr><td>T-05</td><td>Cross-tenant foreign key</td><td>With context A, insert a shipment for an order that belongs to B, and a statement line pointing at B's shipment. Expected: both rejected by the composite foreign key, independent of RLS.</td></tr>
+<tr><td>T-06</td><td>Pool tenant leakage</td><td>Use a pool of size 1. Run a transaction for A that sets context and commits; then a transaction for B on the same connection; then a transaction with no context. Expected: each sees only its own tenant, and the context-free transaction sees nothing. Repeat with rollback instead of commit, and with an exception mid-transaction.</td></tr>
+<tr><td>T-07</td><td>Runtime role cannot bypass</td><td>Assert the runtime role's attributes: not superuser, no BYPASSRLS, not owner of any tenant table, no membership in the migrator role. Attempt DDL as the runtime role. Expected: attribute assertions pass and DDL is denied.</td></tr>
+<tr><td>T-08</td><td>Duplicate tracking IDs</td><td>Import a synthetic statement where one tracking ID appears twice, and where two shipments share a tracking ID. Expected: all rows preserved, no automatic match, both lines flagged ambiguous with a duplicate-tracking finding, and no amounts summed.</td></tr>
+<tr><td>T-09</td><td>Concurrent imports</td><td>Run two imports of different files for the same merchant concurrently, and the same file twice concurrently. Expected: different files both complete with correct row counts; the identical file is detected by hash or idempotency key and does not create a second set of statement lines.</td></tr>
+<tr><td>T-10</td><td>Idempotency</td><td>Replay an import-create and a run-create request with the same key and the same request hash. Expected: the original object is returned, no duplicate exists. Replay with the same key and a different hash. Expected: an explicit error.</td></tr>
+<tr><td>T-11</td><td>Immutable reconciliation runs</td><td>Create a run, record a hash of its run, result, finding and fee-line rows. Attempt UPDATE and DELETE on each as the runtime role; then create a second run over corrected data. Expected: update and delete are denied or affect zero rows; the first run's rows are byte-identical afterwards; the second run is a separate row.</td></tr>
+<tr><td>T-12</td><td>Deterministic output</td><td>Run the same batch twice with the same rule version, tolerance and engine version. Expected: identical run_hash handling (either deduplicated by the unique constraint or two runs with identical computed values), and identical results, findings and fee lines in every amount and status.</td></tr>
+<tr><td>T-13</td><td>Rule version immutability</td><td>Activate a rule version and reconcile with it. Attempt to update its rate and its D_c in place; then create a corrected version. Expected: in-place update of an active version is blocked by the write path and the version is superseded instead; the earlier run still shows the original rule snapshot and hash.</td></tr>
+<tr><td>T-14</td><td>D_c confirmation</td><td>Four cases for a cod_minus_delivery_fee base: no confirmation flag; flag false; flag true with empty evidence; flag true with evidence. Expected: the first three produce DQ_MISSING_CONTRACT, NULL fees and payouts and needs_review, with no substitution of D_e or D_r; the fourth calculates normally.</td></tr>
+<tr><td>T-15</td><td>NULL versus zero, all five states</td><td>Import synthetic rows covering column absent, blank, invalid, explicit zero and valid value for one fee. Expected: states and values exactly as Section D specifies; X_r is NULL for the first three, includes 0 for explicit zero, and no row's missing value appears anywhere as 0.</td></tr>
+<tr><td>T-16</td><td>Classification precedence</td><td>Construct results with: collection-only variance; scenario-only V_total variance; fee variance plus under-collection; and a financial variance plus missing data. Expected overall statuses open, matched (with scenario finding listed), mismatch, and needs_review respectively, with every finding present in each case and contractual payout status decided by V_cond alone.</td></tr>
+<tr><td>T-17</td><td>Partial settlement allocations</td><td>Create a batch, add one partial receipt, allocate it in part, then add a second receipt and complete allocation, marking receipts complete only at the end. Expected: bank variance is NULL at every intermediate step, allocation status moves through partially_allocated to fully_allocated, over-allocation beyond a receipt's amount is rejected, and a variance appears only after completion plus full allocation.</td></tr>
+<tr><td>T-18</td><td>One active COD-bearing shipment</td><td>Attempt to create a second active COD-bearing shipment for one order, and a replacement after superseding the first. Expected: the second active shipment is rejected by the partial unique index and flagged for review; the superseding flow succeeds and the superseded shipment remains queryable.</td></tr>
+<tr><td>T-19</td><td>Matching never uses amount</td><td>Provide a statement line whose amount matches a shipment exactly but whose tracking ID and order reference match nothing. Expected: no candidate is created, the line stays unmatched, and inserting a candidate with an amount basis is rejected by the CHECK constraint.</td></tr>
+<tr><td>T-20</td><td>Financial identities</td><td>For every result in a synthetic suite covering delivered, partial, returned and cancelled shipments, assert V_total = C - delta - V_R + S and V_cond = S - V_R whenever all terms are present, and assert that a NULL term forces its dependents to NULL.</td></tr>
+</table>
+<p>Suite placement: T-01 to T-07 and T-11 are release blockers for any change touching tenancy, roles or migrations. The financial scenarios (T-14 to T-20) are release blockers for any change touching the engine, import parsing or rule handling. None of these tests is optional, and none may be run against a database where the test role owns the tables.</p>
+
+<h2>J. Open Decisions</h2>
+<p>Each decision states why it matters, the realistic options, a recommended default, and whether it blocks implementation. "Blocks" means database implementation should not start on the affected tables until the decision is recorded; it does not mean the whole design is blocked.</p>
+<table>
+<tr><th style="width:10mm">ID</th><th style="width:34mm">Decision</th><th style="width:52mm">Why it matters / options</th><th style="width:34mm">Recommended default</th><th>Blocks?</th></tr>
+<tr><td>OD-01</td><td>Gate: market validation and production-readiness approval</td><td>This design exists so M1 can be reviewed, but building it before the Day 7 and Day 14 validation gates would repeat the drift the planning phase was designed to prevent.</td><td>No implementation until both gates and explicit approval are recorded.</td><td>Yes - everything</td></tr>
+<tr><td>OD-02</td><td>Managed PostgreSQL provider and version</td><td>Affects available extensions, pooling behaviour, backup model and whether FORCE RLS and exclusion constraints behave as assumed. Options: a major managed provider, a Bangladesh-accessible regional provider, or self-managed in Docker for early validation only.</td><td>Managed PostgreSQL, current stable major version, region chosen for latency from Bangladesh, transaction-mode pooling verified by T-06.</td><td>Yes - provisioning</td></tr>
+<tr><td>OD-03</td><td>Identity: built-in credentials or external provider</td><td>Decides whether user_sessions holds refresh hashes or only a revocation list, and whether password_hash is ever populated.</td><td>External provider if it is already available at no extra cost; otherwise built-in with hashed credentials and the session table as specified. Never store raw tokens either way.</td><td>Partial - identity tables</td></tr>
+<tr><td>OD-04</td><td>Run status transition mechanism</td><td>Column-level grant versus a SECURITY DEFINER function. Affects how strictly append-only the run table can be.</td><td>SECURITY DEFINER function, owned by the migrator, validating tenant context.</td><td>No</td></tr>
+<tr><td>OD-05</td><td>Object storage for uploaded files and evidence</td><td>file_objects assumes bytes live outside PostgreSQL. Provider choice affects storage_key format, access control and purge mechanics.</td><td>Private bucket, opaque keys, signed access only through the application. Bytes never in the database.</td><td>Partial - import</td></tr>
+<tr><td>OD-06</td><td>Retention and erasure policy</td><td>Section G proposes lifecycles but no lawful period. Needs Bangladeshi legal and tax advice, especially for financial history versus workspace erasure.</td><td>Retain financial history, anonymise personal data on erasure, purge file bytes - subject to legal confirmation before launch.</td><td>Yes - launch, not build</td></tr>
+<tr><td>OD-07</td><td>Are statement templates global or merchant-owned?</td><td>Global templates are simpler and consistent; merchant-owned templates allow for per-seller statement variants but need merchant_id, RLS and a sharing model on two more tables.</td><td>Global per courier, versioned, with per-import mapping snapshots. Add merchant overrides only if validation shows sellers receive materially different layouts.</td><td>No</td></tr>
+<tr><td>OD-08</td><td>Are merchant order references unique per merchant?</td><td>Decides whether (merchant_id, merchant_order_ref) is a unique constraint or only an index. A wrong uniqueness claim would reject real duplicate references.</td><td>Index only, not unique, until seller evidence shows references are reliably unique.</td><td>No</td></tr>
+<tr><td>OD-09</td><td>What receipt reference may be stored?</td><td>Traceability versus the absolute ban on storing bank account numbers. Even partial digits are a policy choice, not an engineering convenience.</td><td>Merchant-supplied label only, no digits of any account number, unless a written policy decision permits last-four storage.</td><td>Partial - settlement</td></tr>
+<tr><td>OD-10</td><td>Rule activation and overlap model</td><td>Whether one active version per account is enforced by a partial unique index, or overlapping effective windows are allowed with an exclusion constraint.</td><td>One active version per account, activated in a single transaction that supersedes the predecessor. Effective windows recorded for history.</td><td>No</td></tr>
+<tr><td>OD-11</td><td>Guaranteeing at least one active owner per workspace</td><td>Not expressible as a plain constraint. Options: application rule with a locking transaction, or a deferred constraint trigger.</td><td>Application rule inside a transaction that locks the membership rows for the workspace, plus an audit entry.</td><td>No</td></tr>
+<tr><td>OD-12</td><td>Can a statement line legitimately report a negative net payout?</td><td>Return-heavy statements might. Clamping to zero would fabricate a value; allowing negatives affects CHECK constraints on reported payout and on result amounts.</td><td>Allow negative reported payout where the template and merchant evidence support it, flagged for review; keep all other reported amounts non-negative. Confirm with real redacted statement examples during validation.</td><td>Partial - import checks</td></tr>
+<tr><td>OD-13</td><td>Idempotency key retention window</td><td>Too short invites duplicate runs on slow retries; too long grows an operational table.</td><td>7 days for import and run creation, then purge.</td><td>No</td></tr>
+<tr><td>OD-14</td><td>Allocation sum enforcement mechanism</td><td>Cross-row sums cannot be a plain CHECK. Options: transactional enforcement with row locks, plus a deferred constraint trigger as backstop, or transactional enforcement alone.</td><td>Transactional enforcement with row locks, plus the deferred trigger if the implementation review accepts its complexity.</td><td>No</td></tr>
+<tr><td>OD-15</td><td>Additional fee types beyond the closed fee_code list</td><td>Real statements may carry fee types not yet seen. Adding a code is a specification change because it affects X_e, X_R and X_r composition.</td><td>Keep the list closed in M1. Unrecognised fee columns are preserved in raw rows, reported as a data-quality warning, and never folded into a total.</td><td>No</td></tr>
+</table>
+
+<h2>Appendix 1 - Financial invariant traceability</h2>
+<table>
+<tr><th style="width:62mm">Invariant from the approved specification</th><th style="width:52mm">Where it is enforced</th><th>Test</th></tr>
+<tr><td>Money is integer poisha; no floating-point money</td><td>BIGINT columns throughout Section C; basis-point rates; CI metadata check</td><td>T-20, CI check in H.4</td></tr>
+<tr><td>Missing is NULL, never zero; explicit zero is distinguishable</td><td>Per-field state columns and state-to-value CHECKs on statement_lines and fee lines</td><td>T-15</td></tr>
+<tr><td>Raw and normalised values preserved separately</td><td>import_rows.raw_values; raw and normalised tracking and fee fields on shipments and statement_lines</td><td>T-15, T-08</td></tr>
+<tr><td>Runs preserve immutable input and rule snapshots</td><td>reconciliation_runs snapshot columns, run_hash, SELECT/INSERT-only grants, no UPDATE/DELETE policy</td><td>T-11, T-12</td></tr>
+<tr><td>Rule versions historically traceable and immutable</td><td>courier_rule_versions versioning plus courier_rule_evidence provenance</td><td>T-13</td></tr>
+<tr><td>Corrections create new records or runs</td><td>Append-only classes in Section C; superseded shipments and reversed allocations</td><td>T-11, T-18</td></tr>
+<tr><td>Findings independent, never netted, never labelled confirmed losses</td><td>reconciliation_findings as rows with gross amounts; no loss column or view</td><td>T-16</td></tr>
+<tr><td>Partial bank receipts supported</td><td>bank_receipts (many per batch) plus settlement_allocations</td><td>T-17</td></tr>
+<tr><td>Bank variance NULL until receipt complete and batch fully allocated</td><td>settlement_batches.bank_variance_poisha write rule in D.10</td><td>T-17</td></tr>
+<tr><td>No bank account numbers stored</td><td>No such column exists; audit detail rule; OD-09</td><td>Schema review, T-03 style catalog check</td></tr>
+<tr><td>One active COD-bearing shipment per order</td><td>Partial unique index on shipments</td><td>T-18</td></tr>
+<tr><td>Superseded shipments retained but excluded from active reconciliation</td><td>is_superseded flags, superseded_by link, partial indexes</td><td>T-18</td></tr>
+<tr><td>Weak matching never on amount alone</td><td>match_basis CHECK list has no amount value; candidate workflow in D.7</td><td>T-19</td></tr>
+<tr><td>Unknown contractual rules never inferred</td><td>NULL rule fields, DQ_MISSING_CONTRACT, evidence requirement for D_c</td><td>T-14</td></tr>
+<tr><td>D_c requires explicit confirmation and evidence</td><td>dc_confirmed plus dc_evidence_ref CHECKs on courier_rule_versions</td><td>T-14</td></tr>
+<tr><td>Scenario V_total cannot trigger a contractual mismatch</td><td>Separate status columns and derivation rules in D.5 and D.6</td><td>T-16</td></tr>
+<tr><td>Per-line half-up rounding</td><td>reconciliation_fee_lines per component, totals as sums of rounded lines</td><td>T-20</td></tr>
+</table>
+<h2>Appendix 2 - Glossary</h2>
+<table>
+<tr><th style="width:36mm">Term</th><th>Meaning in this document</th></tr>
+<tr><td>Poisha</td><td>The smallest unit used for money here: 100 poisha = 1 taka. All amounts are whole poisha integers.</td></tr>
+<tr><td>E, R, P_r</td><td>Expected collectible COD, courier-reported collected COD, and courier-reported payout for one shipment.</td></tr>
+<tr><td>X_e, X_r, X_R</td><td>Total deductions on the expected basis, as actually reported, and recalculated on the reported basis under confirmed rules.</td></tr>
+<tr><td>D_e, D_r, D_c</td><td>Expected, courier-reported and merchant-confirmed contractual delivery fees. Three separate values, never substituted.</td></tr>
+<tr><td>C, V_R, S, V_cond, V_total</td><td>Collection variance, reported-basis fee/tax variance, statement inconsistency residual, conditional (contractual) payout variance, and scenario payout variance.</td></tr>
+<tr><td>Finding</td><td>One independent, separately stored discrepancy or data-quality problem, with its own gross amount.</td></tr>
+<tr><td>RLS / FORCE</td><td>Row-Level Security: per-row access policies enforced by PostgreSQL. FORCE makes the policies apply to the table owner as well.</td></tr>
+<tr><td>Tenant</td><td>One merchant workspace. Identified everywhere by merchant_id.</td></tr>
+</table>
+<h2>Appendix 3 - Review checklist</h2>
+<ul>
+<li>Every table in the ERD appears in Section C with the same name, keys and relationships, and every Section C table appears in the ERD.</li>
+<li>No money column uses a floating type, has a zero default, or lacks the _poisha suffix.</li>
+<li>Every tenant-owned table has merchant_id, a composite unique (merchant_id, id), tenant-first indexes, RLS enabled and forced, and policies for the operations its class permits.</li>
+<li>Every append-only table has no UPDATE or DELETE grant and no UPDATE or DELETE policy for the runtime role, except the single documented run-status transition.</li>
+<li>D_c, dc_confirmed and dc_evidence_ref behave exactly as the P0 patch requires, and no code path falls back to D_e or D_r.</li>
+<li>Bank variance cannot be written before receipt completion and full allocation.</li>
+<li>No column, in any table, stores a bank account number, a raw credential or a raw session token.</li>
+<li>All Section J decisions marked as blocking are recorded before the affected implementation begins.</li>
+</ul>
+<div class="goodbox"><strong>End of specification.</strong> This document is a design blueprint for review. It authorises no implementation, migration, deployment or account change. M1 development remains gated behind market validation and explicit production-readiness approval.</div>
+</body></html>

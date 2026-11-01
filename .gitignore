@@ -1,0 +1,57 @@
+# CourierLedger goal workspace — root .gitignore.
+# Secrets & local credentials (belt-and-braces; nested .gitignores also cover these).
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+credentials*
+*secret*
+*.sqlite3
+*.dump
+
+# Python / Node / build artefacts (any depth).
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+dist/
+dist-ssr/
+coverage/
+.coverage
+htmlcov/
+*.log
+logs/
+
+# Playwright run artefacts.
+test-results/
+playwright-report/
+
+# Runtime data: uploaded CSVs and mutable local stores (synthetic but regenerable).
+**/var/
+**/.var/
+prototype-p0/runs.sqlite3
+
+# Agent working state — never version-controlled.
+agent_notes/
+briefs/
+crons/
+hidden_files/
+
+# Editor / OS files.
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Generated render-validation screenshots (regenerable; ~50 MB).
+# Keep the deliverable PDFs/XLSX and the .src HTML sources.
+files/*/.src/validate/

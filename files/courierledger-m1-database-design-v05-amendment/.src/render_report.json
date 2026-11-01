@@ -1,0 +1,803 @@
+{
+  "ok": true,
+  "pdf": "/home/hatch/workspace/goals/courierledger-planning-and-market-validation/files/courierledger-m1-database-design-v05-amendment/courierledger-m1-database-design-v05-amendment.pdf",
+  "pages": 0,
+  "pngs": [],
+  "fonts": {
+    "missing": [],
+    "unused": [],
+    "used": [
+      "Liberation Sans",
+      "Liberation Mono"
+    ],
+    "expected": [
+      "Liberation Sans:400",
+      "Liberation Sans:700"
+    ]
+  },
+  "overflow": [],
+  "text_floor": [
+    {
+      "index": 0,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 114,
+          "max_node_chars": 75,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        },
+        {
+          "pt": 8.3,
+          "chars": 1,
+          "max_node_chars": 1,
+          "sample": "c"
+        },
+        {
+          "pt": 9,
+          "chars": 24,
+          "max_node_chars": 24,
+          "sample": "Amendment v0.5  |  Design only"
+        },
+        {
+          "pt": 10,
+          "chars": 2086,
+          "max_node_chars": 372,
+          "sample": "A targeted correction amendment to the D"
+        },
+        {
+          "pt": 12,
+          "chars": 32,
+          "max_node_chars": 32,
+          "sample": "Technical Correction Amendment v0.5"
+        },
+        {
+          "pt": 25,
+          "chars": 42,
+          "max_node_chars": 42,
+          "sample": "CourierLedger M1 Database Design Specifi"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 57,
+          "max_node_chars": 39,
+          "sample": "Amendment at a glance"
+        },
+        {
+          "pt": 8.3,
+          "chars": 22,
+          "max_node_chars": 5,
+          "sample": "R"
+        },
+        {
+          "pt": 8.8,
+          "chars": 909,
+          "max_node_chars": 128,
+          "sample": "search_path"
+        },
+        {
+          "pt": 10,
+          "chars": 1504,
+          "max_node_chars": 413,
+          "sample": "Four findings. Each corrects a place whe"
+        },
+        {
+          "pt": 11.5,
+          "chars": 38,
+          "max_node_chars": 38,
+          "sample": "What changes structurally - and what doe"
+        },
+        {
+          "pt": 15,
+          "chars": 18,
+          "max_node_chars": 18,
+          "sample": "Amendment at a glance"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 74,
+          "max_node_chars": 39,
+          "sample": "CL-23 - Legacy fixture loading mechanism"
+        },
+        {
+          "pt": 8.8,
+          "chars": 24,
+          "max_node_chars": 24,
+          "sample": "session_replication_role"
+        },
+        {
+          "pt": 10,
+          "chars": 2024,
+          "max_node_chars": 569,
+          "sample": "v0.4 CL-18 resolved the contradiction be"
+        },
+        {
+          "pt": 11.5,
+          "chars": 17,
+          "max_node_chars": 17,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 50,
+          "max_node_chars": 50,
+          "sample": "CL-23 - Correct the CL-18 legacy fixture"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 74,
+          "max_node_chars": 39,
+          "sample": "CL-23 - Legacy fixture loading mechanism"
+        },
+        {
+          "pt": 8.8,
+          "chars": 12,
+          "max_node_chars": 12,
+          "sample": "needs_review"
+        },
+        {
+          "pt": 10,
+          "chars": 2368,
+          "max_node_chars": 479,
+          "sample": "Supersedes the two-route fixture paragra"
+        },
+        {
+          "pt": 11.5,
+          "chars": 47,
+          "max_node_chars": 47,
+          "sample": "2. Exact proposed change - one route, st"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 74,
+          "max_node_chars": 39,
+          "sample": "CL-23 - Legacy fixture loading mechanism"
+        },
+        {
+          "pt": 8.8,
+          "chars": 36,
+          "max_node_chars": 24,
+          "sample": "shipment_match_decisions"
+        },
+        {
+          "pt": 10,
+          "chars": 2958,
+          "max_node_chars": 672,
+          "sample": "v0.4 CL-18 section 2 (the fixture paragr"
+        },
+        {
+          "pt": 11.5,
+          "chars": 98,
+          "max_node_chars": 42,
+          "sample": "3. Affected sections and tables"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 86,
+          "max_node_chars": 47,
+          "sample": "CL-24 - Expired-worker completion and fa"
+        },
+        {
+          "pt": 8.8,
+          "chars": 109,
+          "max_node_chars": 25,
+          "sample": "idempotency_keys"
+        },
+        {
+          "pt": 10,
+          "chars": 1818,
+          "max_node_chars": 667,
+          "sample": "v0.3 CL-14 separated the two clocks on"
+        },
+        {
+          "pt": 11.5,
+          "chars": 17,
+          "max_node_chars": 17,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 47,
+          "max_node_chars": 47,
+          "sample": "CL-24 - Expired-worker completion and fa"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 86,
+          "max_node_chars": 47,
+          "sample": "CL-24 - Expired-worker completion and fa"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1144,
+          "max_node_chars": 196,
+          "sample": "idempotency_keys"
+        },
+        {
+          "pt": 10,
+          "chars": 1506,
+          "max_node_chars": 475,
+          "sample": "Supersedes the completion and worker-rep"
+        },
+        {
+          "pt": 11.5,
+          "chars": 62,
+          "max_node_chars": 62,
+          "sample": "2. Exact proposed change - one ownership"
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 86,
+          "max_node_chars": 47,
+          "sample": "CL-24 - Expired-worker completion and fa"
+        },
+        {
+          "pt": 8.8,
+          "chars": 54,
+          "max_node_chars": 16,
+          "sample": "idempotency_keys"
+        },
+        {
+          "pt": 10,
+          "chars": 2269,
+          "max_node_chars": 450,
+          "sample": "v0.4 CL-19 section 2, predicate table (c"
+        },
+        {
+          "pt": 11.5,
+          "chars": 69,
+          "max_node_chars": 42,
+          "sample": "3. Affected sections and tables"
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 86,
+          "max_node_chars": 47,
+          "sample": "CL-24 - Expired-worker completion and fa"
+        },
+        {
+          "pt": 8.8,
+          "chars": 39,
+          "max_node_chars": 16,
+          "sample": "status"
+        },
+        {
+          "pt": 10,
+          "chars": 2530,
+          "max_node_chars": 476,
+          "sample": "T-27(r) (narrowed)."
+        },
+        {
+          "pt": 11.5,
+          "chars": 29,
+          "max_node_chars": 21,
+          "sample": "5. Updated test scenario"
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 88,
+          "max_node_chars": 49,
+          "sample": "CL-25 - Session renewal and the shared-u"
+        },
+        {
+          "pt": 8.8,
+          "chars": 20,
+          "max_node_chars": 13,
+          "sample": "user_id"
+        },
+        {
+          "pt": 10,
+          "chars": 1819,
+          "max_node_chars": 568,
+          "sample": "v0.4 CL-20 replaced CL-15's membership-r"
+        },
+        {
+          "pt": 11.5,
+          "chars": 17,
+          "max_node_chars": 17,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 49,
+          "max_node_chars": 49,
+          "sample": "CL-25 - Session renewal and the shared-u"
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 88,
+          "max_node_chars": 49,
+          "sample": "CL-25 - Session renewal and the shared-u"
+        },
+        {
+          "pt": 8.8,
+          "chars": 923,
+          "max_node_chars": 123,
+          "sample": "user_id"
+        },
+        {
+          "pt": 10,
+          "chars": 1838,
+          "max_node_chars": 738,
+          "sample": "Extends the operation list in v0.4 CL-20"
+        },
+        {
+          "pt": 11.5,
+          "chars": 125,
+          "max_node_chars": 63,
+          "sample": "2. Exact proposed change - the protocol "
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 88,
+          "max_node_chars": 49,
+          "sample": "CL-25 - Session renewal and the shared-u"
+        },
+        {
+          "pt": 8.8,
+          "chars": 46,
+          "max_node_chars": 13,
+          "sample": "user_sessions"
+        },
+        {
+          "pt": 10,
+          "chars": 2610,
+          "max_node_chars": 752,
+          "sample": "If renewal is impossible by design."
+        },
+        {
+          "pt": 11.5,
+          "chars": 69,
+          "max_node_chars": 42,
+          "sample": "3. Affected sections and tables"
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 88,
+          "max_node_chars": 49,
+          "sample": "CL-25 - Session renewal and the shared-u"
+        },
+        {
+          "pt": 10,
+          "chars": 2609,
+          "max_node_chars": 527,
+          "sample": "T-30(m)-(p) (new) - Session lifecycle ra"
+        },
+        {
+          "pt": 11.5,
+          "chars": 29,
+          "max_node_chars": 21,
+          "sample": "5. Updated test scenario"
+        }
+      ]
+    },
+    {
+      "index": 13,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 80,
+          "max_node_chars": 41,
+          "sample": "CL-26 - SECURITY DEFINER search_path har"
+        },
+        {
+          "pt": 8.8,
+          "chars": 22,
+          "max_node_chars": 11,
+          "sample": "merchant_id"
+        },
+        {
+          "pt": 10,
+          "chars": 2004,
+          "max_node_chars": 664,
+          "sample": "v0.4 CL-22 specified the validation trig"
+        },
+        {
+          "pt": 11.5,
+          "chars": 17,
+          "max_node_chars": 17,
+          "sample": "1. Original problem"
+        },
+        {
+          "pt": 15,
+          "chars": 41,
+          "max_node_chars": 41,
+          "sample": "CL-26 - SECURITY DEFINER search_path har"
+        }
+      ]
+    },
+    {
+      "index": 14,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 80,
+          "max_node_chars": 41,
+          "sample": "CL-26 - SECURITY DEFINER search_path har"
+        },
+        {
+          "pt": 8.8,
+          "chars": 11,
+          "max_node_chars": 11,
+          "sample": "search_path"
+        },
+        {
+          "pt": 10,
+          "chars": 2760,
+          "max_node_chars": 567,
+          "sample": "Adds a seventh rule to the validation tr"
+        },
+        {
+          "pt": 11.5,
+          "chars": 47,
+          "max_node_chars": 47,
+          "sample": "2. Exact proposed change - Rule 7 joins "
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 80,
+          "max_node_chars": 41,
+          "sample": "CL-26 - SECURITY DEFINER search_path har"
+        },
+        {
+          "pt": 8.8,
+          "chars": 33,
+          "max_node_chars": 11,
+          "sample": "search_path"
+        },
+        {
+          "pt": 10,
+          "chars": 2606,
+          "max_node_chars": 498,
+          "sample": "(f) Ownership and RLS posture unchanged."
+        },
+        {
+          "pt": 11.5,
+          "chars": 69,
+          "max_node_chars": 42,
+          "sample": "3. Affected sections and tables"
+        }
+      ]
+    },
+    {
+      "index": 16,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 80,
+          "max_node_chars": 41,
+          "sample": "CL-26 - SECURITY DEFINER search_path har"
+        },
+        {
+          "pt": 8.8,
+          "chars": 33,
+          "max_node_chars": 11,
+          "sample": "search_path"
+        },
+        {
+          "pt": 10,
+          "chars": 2095,
+          "max_node_chars": 670,
+          "sample": "T-32(g)-(h) (new) - Object resolution un"
+        },
+        {
+          "pt": 11.5,
+          "chars": 29,
+          "max_node_chars": 21,
+          "sample": "5. Updated test scenario"
+        }
+      ]
+    },
+    {
+      "index": 17,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 62,
+          "max_node_chars": 39,
+          "sample": "Consolidated test changes"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1699,
+          "max_node_chars": 327,
+          "sample": "Test"
+        },
+        {
+          "pt": 10,
+          "chars": 300,
+          "max_node_chars": 300,
+          "sample": "Section I of v0.1, as amended by v0.2, v"
+        },
+        {
+          "pt": 15,
+          "chars": 23,
+          "max_node_chars": 23,
+          "sample": "Consolidated test changes"
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "runs": [
+        {
+          "pt": 7.3,
+          "chars": 1,
+          "max_node_chars": 1,
+          "sample": "c"
+        },
+        {
+          "pt": 8,
+          "chars": 65,
+          "max_node_chars": 39,
+          "sample": "Invariant traceability delta"
+        },
+        {
+          "pt": 8.8,
+          "chars": 1876,
+          "max_node_chars": 175,
+          "sample": "Invariant (source)"
+        },
+        {
+          "pt": 10,
+          "chars": 266,
+          "max_node_chars": 266,
+          "sample": "The appendix invariant traceability of v"
+        },
+        {
+          "pt": 15,
+          "chars": 26,
+          "max_node_chars": 26,
+          "sample": "Invariant traceability delta"
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 59,
+          "max_node_chars": 39,
+          "sample": "Change log - v0.4 to v0.5"
+        },
+        {
+          "pt": 8.8,
+          "chars": 2133,
+          "max_node_chars": 470,
+          "sample": "Vocabulary as in v0.4:"
+        },
+        {
+          "pt": 10,
+          "chars": 144,
+          "max_node_chars": 144,
+          "sample": "No other change is made by this amendmen"
+        },
+        {
+          "pt": 15,
+          "chars": 20,
+          "max_node_chars": 20,
+          "sample": "Change log - v0.4 to v0.5"
+        }
+      ]
+    },
+    {
+      "index": 20,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 72,
+          "max_node_chars": 39,
+          "sample": "Remaining blockers and open decisions"
+        },
+        {
+          "pt": 10,
+          "chars": 2340,
+          "max_node_chars": 583,
+          "sample": "B-1. Market validation:"
+        },
+        {
+          "pt": 11.5,
+          "chars": 90,
+          "max_node_chars": 63,
+          "sample": "Blocking any M1 implementation (unchange"
+        },
+        {
+          "pt": 15,
+          "chars": 33,
+          "max_node_chars": 33,
+          "sample": "Remaining blockers and open decisions"
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "runs": [
+        {
+          "pt": 8,
+          "chars": 114,
+          "max_node_chars": 75,
+          "sample": "CourierLedger M1 Database Design - Amend"
+        },
+        {
+          "pt": 8.8,
+          "chars": 193,
+          "max_node_chars": 193,
+          "sample": "End of amendment v0.5. This amendment su"
+        },
+        {
+          "pt": 10,
+          "chars": 2517,
+          "max_node_chars": 889,
+          "sample": "Ready to freeze as a design review basel"
+        },
+        {
+          "pt": 15,
+          "chars": 40,
+          "max_node_chars": 40,
+          "sample": "Is the database design ready for schema "
+        }
+      ]
+    }
+  ],
+  "image_resolution": [
+    {
+      "index": 0,
+      "images": []
+    },
+    {
+      "index": 1,
+      "images": []
+    },
+    {
+      "index": 2,
+      "images": []
+    },
+    {
+      "index": 3,
+      "images": []
+    },
+    {
+      "index": 4,
+      "images": []
+    },
+    {
+      "index": 5,
+      "images": []
+    },
+    {
+      "index": 6,
+      "images": []
+    },
+    {
+      "index": 7,
+      "images": []
+    },
+    {
+      "index": 8,
+      "images": []
+    },
+    {
+      "index": 9,
+      "images": []
+    },
+    {
+      "index": 10,
+      "images": []
+    },
+    {
+      "index": 11,
+      "images": []
+    },
+    {
+      "index": 12,
+      "images": []
+    },
+    {
+      "index": 13,
+      "images": []
+    },
+    {
+      "index": 14,
+      "images": []
+    },
+    {
+      "index": 15,
+      "images": []
+    },
+    {
+      "index": 16,
+      "images": []
+    },
+    {
+      "index": 17,
+      "images": []
+    },
+    {
+      "index": 18,
+      "images": []
+    },
+    {
+      "index": 19,
+      "images": []
+    },
+    {
+      "index": 20,
+      "images": []
+    },
+    {
+      "index": 21,
+      "images": []
+    }
+  ],
+  "geometry": {
+    "failures": [],
+    "advisories": []
+  },
+  "gate_failures": [],
+  "advisories": []
+}
