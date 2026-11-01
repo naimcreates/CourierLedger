@@ -229,7 +229,7 @@ updated to "fixed" — the remediation file is the status record.
   `ci-selfhosted.yml:66` (`${{ secrets.CI_POSTGRES_PASSWORD || '<literal>' }}`), also quoted
   in `m1/LOCAL_VERIFICATION.md:387` and `m1/IMPLEMENTATION_CHECKLIST.md:237`; and
   (b) the live local-dev password was the publicly documented placeholder string
-  `dev-only-placeholder` (named in `m1/README.md:84-85,200`, `m1/backend/README.md:411,535`,
+  (named in `m1/README.md:84-85,200`, `m1/backend/README.md:411,535`,
   `m1/IMPLEMENTATION_CHECKLIST.md:212`, `m1/LOCAL_VERIFICATION.md:135,200,397`).
   The historical committed password (commit `6c6c03b`, 10 chars) also appeared in the
   current tree in 3 test files as example env values (5 occurrences) and in stale
